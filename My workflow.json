@@ -1,0 +1,233 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Site Submission",
+        "formDescription": "Please provide the link of the website to analyse",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Site",
+              "placeholder": "Site"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.3,
+      "position": [
+        -1200,
+        528
+      ],
+      "id": "e7185843-559a-4bd7-b3f1-ecb9e43e4cc2",
+      "name": "On form submission",
+      "webhookId": "a9bf3530-9797-4a48-b5f0-0f91f806ea56"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        0,
+        624
+      ],
+      "id": "d586a6a6-cd1d-4e5a-85e3-a4e553bce179",
+      "name": "Google Gemini Chat Model",
+      "notesInFlow": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "GqzpOEsHq0iogdVe",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert at analyzing pirate soccer streaming websites.\n\nExamine the full HTML below and determine what kind of page it is.\n\nPossible page types (return exactly ONE of these strings, nothing else):\n\n- LANDING_PAGE      → A list of matches, league tables, \"choose your match\", multiple links, countdown timers, etc.\n- HOSTING_PAGE      → The actual page where the video player is loaded (iframe/embed + player scripts, countdown overlay, \"click play\", popups, etc.)\n- EMBED_VIDEO_PAGE  → Pure iframe or direct video source page (usually just one <iframe> or <video> tag with the stream URL, minimal HTML)\n- UNKNOWN           → Anything else (404, captcha, ad fly, login wall, etc.)\n\nRules:\n- If you see a list/grid of upcoming or live matches → LANDING_PAGE\n- If you see a big video player + \"Click to play\" or countdown or \"remove ads\" button → HOSTING_PAGE  \n- If the page is almost empty except one huge <iframe src=\"...\"> or <video src=\"...m3u8\"> → EMBED_VIDEO_PAGE\n- Never explain, never add quotes, never say \"I think\". Just return the exact string.\n\nHTML starts here:\n{{ $json.Site }}\n\nAnswer only with: LANDING_PAGE / HOSTING_PAGE / EMBED_VIDEO_PAGE / UNKNOWN",
+        "needsFallback": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -16,
+        352
+      ],
+      "id": "b89b6898-e845-4967-bf17-9a3e63fba30e",
+      "name": "Classification Agent"
+    },
+    {
+      "parameters": {
+        "model": "x-ai/grok-4.1-fast:free",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -192,
+        608
+      ],
+      "id": "cd752a36-7da5-4048-8c5f-36c9a32596d7",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "1QI9uO8HxFBwGhAY",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('On form submission').item.json.Site }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        240,
+        576
+      ],
+      "id": "4a334b09-c38a-4f75-b19d-b1b551b130a4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "from bs4 import BeautifulSoup\nfrom minify_html import minify\nfrom inscriptis import get_text\nfrom typing import Dict, List, Optional\nimport re\nimport logging\nimport subprocess\nimport json\n# Configure logging\nlogging.basicConfig(level=logging.INFO)\nlogger = logging.getLogger(_name_)\n\nURL_EXTRACTOR = re.compile(r'https?://[^\\s\"\\'<>]+')\n\nURL_VALIDATOR = re.compile(\n    r\"^(https?:\\/\\/)?(?:www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\"\n    r\"\\.[a-zA-Z0-9()]{1,6}\\b(?:[-a-zA-Z0-9()@:%_\\+.~#?&\\/=]*)$\"\n)\n\ndef is_valid_url(url: str) -> bool:\n    return bool(URL_VALIDATOR.match(url))\n\n\n\ndef process_html_content(\n    html_content: str,\n    parser: str = \"lxml\",\n    keep_images: bool = False,\n    remove_svg: bool = True,\n    remove_gif: bool = True,\n    excluded_image_types: Optional[List[str]] = None,\n    keep_links: bool = True,\n    remove_scripts: bool = True,\n    remove_styles: bool = True,\n    excluded_tags: Optional[List[str]] = None,\n    excluded_attributes: Optional[List[str]] = None,\n    return_html=False\n) -> Dict[str, any]:\n    \"\"\"\n    Process HTML content and extract cleaned HTML, text, and URLs.\n    \n    Args:\n        html_content: Raw HTML string to process\n        parser: BeautifulSoup parser to use ('lxml', 'html.parser', etc.)\n        keep_images: Whether to preserve image tags\n        remove_svg: Remove SVG images\n        remove_gif: Remove GIF images\n        excluded_image_types: List of image file extensions to remove\n        keep_links: Whether to preserve link information\n        remove_scripts: Remove script tags\n        remove_styles: Remove style tags\n        excluded_tags: Additional tags to remove\n        excluded_attributes: Additional Attributes to \n        return_html: render html text or skip\n    Returns:\n        Dictionary containing:\n        - cleaned_html: Minified HTML content\n        - text_content: Plain text extracted from HTML\n        - script_urls: URLs found in script tags\n        - page_links: Links found in the page\n    \"\"\"\n    # Initialize default values\n    excluded_image_types = excluded_image_types or []\n    excluded_tags = excluded_tags or []\n    excluded_attributes = excluded_attributes or []\n\n    # Initialize result containers\n    script_urls = []\n    page_links = []\n    \n    try:\n        # Parse HTML\n        soup = BeautifulSoup(html_content, parser)\n        # Extract URLs from script tags before removal\n        if remove_scripts:\n            script_urls = _extract_script_urls(soup)\n        if excluded_attributes:\n            _remove_tags_with_attributes(soup, excluded_attributes)\n        # Remove unwanted tags\n        _remove_unwanted_tags(soup, remove_scripts, remove_styles, excluded_tags)\n        \n        # Process images\n        _process_images(soup, keep_images, remove_svg, remove_gif, excluded_image_types)\n        \n        # Process links\n        if keep_links:\n            page_links = _process_links(soup)\n        else:\n            _remove_all_links(soup)\n        \n        # Extract final content\n        cleaned_html = _get_cleaned_html(soup)\n        text_content = get_text(cleaned_html)\n        processed = {\n            \"text_content\": text_content,\n            \"script_urls\": list(set(script_urls)),  # Remove duplicates\n            \"page_links\": page_links,\n            \"cleaned_html\": cleaned_html if return_html else \"\"\n        }\n        return processed\n    except Exception as e:\n        logger.error(f\"Error processing HTML content: {e}\")\n        return {\n            \"cleaned_html\": \"\",\n            \"text_content\": \"\",\n            \"script_urls\": [],\n            \"page_links\": []\n        }\n\ndef _extract_script_urls(soup: BeautifulSoup) -> List[str]:\n    \"\"\"Extract URLs from script tags.\"\"\"\n    urls = []\n    for script in soup.find_all(\"script\"):\n        script_content = script.string or script.get_text()\n        if script_content:\n            matches = URL_EXTRACTOR.findall(script_content)\n            urls.extend(matches)\n    return urls\n\ndef _remove_unwanted_tags(\n    soup: BeautifulSoup, \n    remove_scripts: bool, \n    remove_styles: bool, \n    excluded_tags: List[str]\n) -> None:\n    \"\"\"Remove unwanted HTML tags.\"\"\"\n    tags_to_remove = set(excluded_tags)\n    \n    if remove_scripts:\n        tags_to_remove.add(\"script\")\n    if remove_styles:\n        tags_to_remove.add(\"style\")\n    \n    for tag_name in tags_to_remove:\n        for tag in soup.find_all(tag_name):\n            tag.extract()\n\ndef _process_images(\n    soup: BeautifulSoup,\n    keep_images: bool,\n    remove_svg: bool,\n    remove_gif: bool,\n    excluded_image_types: List[str]\n) -> None:\n    \"\"\"Process image tags based on configuration.\"\"\"\n    if not keep_images:\n        for img in soup.find_all(\"img\"):\n            img.extract()\n        return\n    \n    # Build set of extensions to remove\n    remove_extensions = set(excluded_image_types)\n    if remove_svg:\n        remove_extensions.add(\".svg\")\n    if remove_gif:\n        remove_extensions.add(\".gif\")\n    \n    # Process each image\n    for img in soup.find_all(\"img\"):\n        src = img.get(\"src\", \"\").strip()\n        if any(src.lower().endswith(ext) for ext in remove_extensions):\n            img.extract()\n        else:\n            # Replace with image URL for text extraction\n            img.replace_with(f\"\\n[IMAGE: {src}]\\n\")\n\ndef _process_links(soup: BeautifulSoup) -> List[Dict[str, str]]:\n    \"\"\"Process anchor tags and extract link information.\"\"\"\n    links = []\n    for link in soup.find_all(\"a\"):\n        parent_element = link.find_parent()\n        \n        href = link.get(\"href\")\n        if href:\n            href = href.strip()\n        else:\n            continue  # skip if no href\n        if href.startswith(\"//\"):\n            href = \"https:\" + href\n\n        text = link.get_text() or \"\"\n        text = text.strip()\n\n        title = link.get(\"title\")\n        if title:\n            title = title.strip()\n        \n        # if href and is_valid_url(href):\n        link_data = {\"url\": href}\n\n        if text:\n            link_data[\"text\"] = text\n\n        if title:\n            link_data[\"title\"] = title\n\n        if parent_element:\n            parent_text = parent_element.get_text(strip=True)\n            if parent_text:\n                link_data[\"parent_text\"] = parent_text\n\n        links.append(link_data)\n    return links\n\ndef _remove_all_links(soup: BeautifulSoup) -> None:\n    \"\"\"Remove all anchor tags.\"\"\"\n    for link in soup.find_all(\"a\"):\n        link.extract()\n\ndef _remove_tags_with_attributes(soup: BeautifulSoup, excluded_attributes: List[str]) -> None:\n    \"\"\"\n    Remove tags that have ANY of the specified attributes.\n    \n    Args:\n        soup: BeautifulSoup object to modify\n        excluded_attributes: List of attribute names - if a tag has ANY of these attributes, it will be removed\n        \n    Example:\n        excluded_attributes = ['style', 'role', 'aria-label', 'data-track']\n        # This will remove any tag that has style OR role OR aria-label OR data-track attributes\n    \"\"\"\n    tags_to_remove = []\n    \n    # Find all tags in the soup\n    for tag in soup.find_all():\n        # Check if tag has any of the excluded attributes\n        if any(attr in tag.attrs for attr in excluded_attributes):\n            tags_to_remove.append(tag)\n    \n    # Remove the tags\n    for tag in tags_to_remove:\n        tag.extract()\n\ndef _get_cleaned_html(soup: BeautifulSoup) -> str:\n    \"\"\"Extract and minify HTML content.\"\"\"\n    # Prefer body content if available\n    body = soup.find(\"body\")\n    html_content = str(body) if body else str(soup)\n    \n    try:\n        return minify(html_content)\n    except Exception as e:\n        logger.warning(f\"HTML minification failed: {e}\")\n        return html_content\n\n# Convenience function with common defaults\ndef extract_text_from_html(html_content: str) -> str:\n    \"\"\"\n    Simple function to extract plain text from HTML.\n\n    Args:\n        html_content: Raw HTML string\n\n    Returns:\n        Plain text content\n    \"\"\"\n    result = process_html_content(html_content)\n    return result[\"text_content\"]\n\n\ndef extract_features_from_html(data: dict) -> dict:\n    feature_data = {\n        'page_features': process_html_content(\n            html_content=data.get('pageContent'),\n            excluded_tags=['footer']\n        )\n    }\n    iframes = data.get('iframes', [])\n    filtered_iframes = rank_iframes(iframes)\n    feature_data['iframes'] = filtered_iframes [0] if filtered_iframes else {}\n    content = data.get(\"pageContent\", \"\")\n    soup = BeautifulSoup(content, \"html.parser\")\n    visible_text = soup.get_text(separator=' ', strip=True)\n    meta_description = detect_meta_description(soup=soup)\n    patterns = detect_suspicious_patterns(content)\n    players = detect_suspicious_players(content)\n    keywords = detect_keywords(visible_text)\n    layout = data.get('layout')\n    page_script_urls = feature_data.get('page_features').get('script_urls')\n    page_text_content = feature_data.get('page_features').get('text_content')\n    page_links = feature_data.get('page_features').get('page_links') or []\n    iframe = feature_data.get('iframes').get('iframe') if feature_data.get('iframes') else ''\n    processed_iframe_html = process_html_content(feature_data.get('iframes').get('iframe_html'), return_html=True)if feature_data.get('iframes') else ''\n    iframe_html = processed_iframe_html.get('cleaned_html') if processed_iframe_html else None\n    if processed_iframe_html:\n        page_links.extend(processed_iframe_html.get('page_links')) # enrich page_links with links extracted from iframe html\n    return {\n        \"mainUrl\": data.get('url'),\n        # \"page_features\": feature_data.get('page_features'),\n        \"page_links\": page_links,\n        \"page_text_content\": page_text_content,\n        # \"page_script_urls\": page_script_urls,\n        \"page_has_header\": layout.get('hasHeader'),\n        \"page_has_footer\": layout.get('hasFooter'),\n        \"page_has_navbar\": layout.get('hasNav'),\n        \"page_network\": data.get('network'),\n        \"players_found\": players,\n        \"iframe\": iframe,\n        \"iframe_html\": iframe_html,\n        \"suspicious_patterns\": patterns,\n        \"meta_description\": meta_description,\n        \"keywords\": keywords,\n        \"screenshot_url\": data.get('screenshotUrl'),\n    }\n\n\ndef scrape_with_node(target_url: str) -> Optional[dict]:\n    print(f\"\\n{'='*80}\")\n    print(f\"PROCESSING URL ----->: {target_url}\")\n    print(f\"{'='*80}\")\n    result = subprocess.run(\n        ['node', 'test.js', target_url],\n        capture_output=True,\n        text=True,\n        encoding='utf-8'\n    )\n    if result.returncode != 0:\n        print(\"Error:\", result.stderr)\n        return None\n    print(\"Raw stderr:\\n\", result.stderr)\n    raw_html = json.loads(result.stdout)\n    if not raw_html:\n        print(\"Failed to scrape the page.\")\n        return\n    page_features = extract_features_from_html(data=raw_html)\n    return page_features\n\nif _name_ == \"_main_\":\n    scrape_with_node(\"_input.first().json.Site\")"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        336
+      ],
+      "id": "ce0630a7-8ec5-4050-bc40-0ef28a6e9ba1",
+      "name": "Code in Python (Beta)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\nconst { newInjectedPage } = require(\"fingerprint-injector\");\n\n// Extract iframe metadata + inner HTML (if same-origin)\nasync function extractIframeMetadata(page) {\n    try {\n        const iframeHandles = await page.$$('iframe'); // Puppeteer element handles\n        const iframes = [];\n\n        for (let index = 0; index < iframeHandles.length; index++) {\n            const iframeHandle = iframeHandles[index];\n\n            // Extract outer attributes (in browser context)\n            const metadata = await page.evaluate((iframe, index) => {\n                const rect = iframe.getBoundingClientRect();\n                return {\n                    index,\n                    src: iframe.src || iframe.getAttribute('src') || '',\n                    title: iframe.title || iframe.getAttribute('title') || '',\n                    width: iframe.width || iframe.getAttribute('width') || rect.width,\n                    height: iframe.height || iframe.getAttribute('height') || rect.height,\n                    frameborder: iframe.frameBorder || iframe.getAttribute('frameborder') || '',\n                    allow: iframe.allow || iframe.getAttribute('allow') || '',\n                    referrerpolicy: iframe.referrerPolicy || iframe.getAttribute('referrerpolicy') || '',\n                    allowfullscreen: iframe.allowFullscreen || iframe.hasAttribute('allowfullscreen'),\n                    sandbox: iframe.sandbox ? iframe.sandbox.toString() : '',\n                    loading: iframe.loading || iframe.getAttribute('loading') || '',\n                    name: iframe.name || iframe.getAttribute('name') || '',\n                    id: iframe.id || '',\n                    className: iframe.className || '',\n                    isVisible: rect.width > 0 && rect.height > 0,\n                    position: {\n                        top: rect.top,\n                        left: rect.left,\n                        bottom: rect.bottom,\n                        right: rect.right\n                    },\n                    iframe: iframe.outerHTML || ''\n                };\n            }, iframeHandle, index);\n\n            // Try to get the iframe document’s HTML (if same-origin)\n            try {\n                const frame = await iframeHandle.contentFrame();\n                if (frame) {\n                    metadata.iframe_html = await frame.evaluate(() => document.documentElement.outerHTML);\n                } else {\n                    metadata.iframe_html = null; // cross-origin or \n                }\n            } catch {\n                metadata.iframe_html = null;\n            }\n\n            iframes.push(metadata);\n        }\n\n        return iframes;\n    } catch (error) {\n        console.error('Error extracting iframe metadata:', error);\n        return [];\n    }\n}\n\n// Check if an iframe is same-origin\nasync function isSameOrigin(page, iframeSrc) {\n    try {\n        const pageUrl = new URL(page.url());\n        const iframeUrl = new URL(iframeSrc);\n        return pageUrl.origin === iframeUrl.origin;\n    } catch (error) {\n        return false;\n    }\n}\n\n// Extract content from same-origin iframe\nasync function extractSameOriginFrameContent(frame, depth = 0) {\n    try {\n        const url = frame.url();\n        const html = await frame.content();\n\n        // Extract text content (cleaned)\n        const text = await frame.evaluate(() => {\n            return document.documentElement.innerText\n                .replace(/[ \\t]+/g, ' ')\n                .replace(/\\n\\s*/g, '\\n')\n                .trim();\n        });\n\n        // Extract metadata\n        const metadata = await frame.evaluate(() => {\n            const meta = {};\n\n            const titleEl = document.querySelector('title');\n            meta.title = titleEl ? titleEl.textContent : '';\n\n            const metaTags = document.querySelectorAll('meta');\n            meta.metaTags = Array.from(metaTags).map(tag => ({\n                name: tag.name || tag.getAttribute('property') || tag.getAttribute('http-equiv'),\n                content: tag.content\n            })).filter(tag => tag.name);\n\n            const scripts = document.querySelectorAll('script[type=\"application/ld+json\"]');\n            meta.structuredData = Array.from(scripts).map(script => {\n                try {\n                    return JSON.parse(script.textContent);\n                } catch {\n                    return null;\n                }\n            }).filter(Boolean);\n\n            return meta;\n        });\n\n        // Optional: Analyze the page as if it were a cross-origin iframe\n        const serviceInfo = analyzeIframeService(url); // you can reuse this function for all URLs\n\n        return {\n            type: 'same-origin',\n            url,\n            depth,\n            html,\n            text,\n            accessible: true,\n            metadata: {\n                ...metadata,\n                platform: serviceInfo.platform,\n                contentType: serviceInfo.contentType,\n                videoId: serviceInfo.videoId,\n                embedUrl: url\n            },\n            screenshot: null, // or set if you choose to capture same-origin screenshots\n            iframeAttributes: null, // to keep consistent structure, though not needed for same-origin\n            children: []\n        };\n    } catch (error) {\n        return {\n            type: 'same-origin-error',\n            url: frame.url() || 'unknown',\n            depth,\n            html: `Content inaccessible: ${error.message}`,\n            text: `Content inaccessible: ${error.message}`,\n            accessible: false,\n            metadata: {},\n            error: error.message,\n            children: []\n        };\n    }\n}\n\n\n// Handle cross-origin iframe (extract what we can without accessing content)\nasync function extractCrossOriginFrameContent(page, iframeData, depth = 0) {\n    try {\n        // For cross-origin iframes, we can't access the content but we can:\n        // 1. Extract all available attributes from the iframe element\n        // 2. Try to take a screenshot of just the iframe area\n        // 3. Analyze the URL to determine the service/platform\n        let screenshot = null;\n        try {\n            const rect = iframeData.position;\n            screenshot = await page.screenshot({\n                clip: {\n                    x: rect.left,\n                    y: rect.top,\n                    width: rect.right - rect.left,\n                    height: rect.bottom - rect.top\n                }\n            });\n        } catch {}\n\n        let serviceInfo = analyzeIframeService(iframeData.src);\n        return {\n            type: 'cross-origin',\n            url: iframeData.src,\n            depth,\n            html: 'Cross-origin content not accessible',\n            text: 'Cross-origin content not accessible',\n            accessible: false,\n            iframeAttributes: iframeData,\n            serviceInfo,\n            screenshot: screenshot,\n            metadata: {\n                platform: serviceInfo.platform,\n                contentType: serviceInfo.contentType,\n                videoId: serviceInfo.videoId,\n                embedUrl: iframeData.src\n            },\n            children: []\n        };\n    } catch (error) {\n        return {\n            type: 'cross-origin-error',\n            url: iframeData.src || 'unknown',\n            depth,\n            html: `Error processing cross-origin iframe: ${error.message}`,\n            text: `Error processing cross-origin iframe: ${error.message}`,\n            accessible: false,\n            error: error.message,\n            children: []\n        };\n    }\n}\n\n// Analyze iframe service based on URL patterns\nfunction analyzeIframeService(src) {\n    if (!src) return { platform: 'unknown', contentType: 'unknown' };\n\n    const url = src.toLowerCase();\n\n    // YouTube\n    if (url.includes('youtube.com/embed') || url.includes('youtu.be')) {\n        const videoIdMatch = src.match(/\\/embed\\/([^?&]+)/);\n        return {\n            platform: 'youtube',\n            contentType: 'video',\n            videoId: videoIdMatch ? videoIdMatch[1] : null\n        };\n    }\n\n    // Vimeo\n    if (url.includes('vimeo.com')) {\n        const videoIdMatch = src.match(/vimeo\\.com\\/(?:video\\/)?(\\d+)/);\n        return {\n            platform: 'vimeo',\n            contentType: 'video',\n            videoId: videoIdMatch ? videoIdMatch[1] : null\n        };\n    }\n\n    // Facebook\n    if (url.includes('facebook.com')) {\n        return {\n            platform: 'facebook',\n            contentType: 'social'\n        };\n    }\n\n    // Twitter/X\n    if (url.includes('twitter.com') || url.includes('x.com')) {\n        return {\n            platform: 'twitter',\n            contentType: 'social'\n        };\n    }\n\n    // Google Maps\n    if (url.includes('google.com/maps')) {\n        return {\n            platform: 'google-maps',\n            contentType: 'map'\n        };\n    }\n\n    // Generic analysis\n    if (url.includes('stream') || url.includes('live') || url.includes('video')) {\n        return {\n            platform: 'unknown',\n            contentType: 'video'\n        };\n    }\n\n    return {\n        platform: 'unknown',\n        contentType: 'unknown'\n    };\n}\n\n// Updated crawlFrames function to handle both same-origin and cross-origin\nasync function crawlFrames(page, frame, result, depth = 0, iframeMetadata = []) {\n    // First, handle the current frame if it's accessible\n    if (frame) {\n        try {\n            const frameData = await extractSameOriginFrameContent(frame, depth);\n            result.children.push(frameData);\n            \n            // Recursively crawl child frames (same-origin)\n            const childFrames = frame.childFrames();\n            for (const childFrame of childFrames) {\n                await crawlFrames(page, childFrame, frameData, depth + 1, iframeMetadata);\n            }\n        } catch (error) {\n            console.error(`Error crawling frame at depth ${depth}: ${error.message}`);\n        }\n    }\n\n    // Handle cross-origin iframes from metadata (only at top level)\n    if (depth === 0 && iframeMetadata.length > 0) {\n        for (const iframeData of iframeMetadata) {\n            // Check if this iframe is cross-origin\n            const sameOrigin = await isSameOrigin(page, iframeData.src);\n            \n            if (!sameOrigin && iframeData.src) {\n                const crossOriginData = await extractCrossOriginFrameContent(page, iframeData, depth + 1);\n                result.children.push(crossOriginData);\n            }\n        }\n    }\n}\n\nasync function checkLayoutElements(page) {\n    try {\n        const result = await page.evaluate(() => {\n            const navClassRegex = /\\b(nav(-?bar)?|navigation)\\b/i;\n    \n            const hasHeader = !!document.querySelector('header');\n            const hasFooter = !!document.querySelector('footer');\n    \n            let hasNav = !!document.querySelector('nav');\n            if (!hasNav) {\n                const elements = document.querySelectorAll('[class]');\n                for (const el of elements) {\n                    if (navClassRegex.test(el.className)) {\n                        hasNav = true;\n                        break;\n                    }\n                }\n            }\n    \n            return { hasHeader, hasFooter, hasNav };\n        });\n    \n        if (!result) {\n            throw new Error(\"No result returned from page.evaluate()\");\n        }\n    \n        return result;\n    } catch (err) {\n        console.error(\"checkLayoutElements failed:\", err);\n        return { hasHeader: false, hasFooter: false, hasNav: false };\n    }\n}\n\nfunction pickRandom(list) {\n    return list[Math.floor(Math.random() * list.length)];\n}\n\n// Main execution\nconst url = items[0].json.Site;\nif (!url) {\n    throw new Error(\"No URL provided in input\");\n}\n\nconst userAgents = [\n    \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36\",\n    \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.127 Safari/537.36\",\n    \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.113 Safari/537.36\",\n    \"Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36\",\n    \"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15\",\n    \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.1\",\n    \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36\",\n    \"Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36\",\n    \"Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.127 Mobile Safari/537.36\",\n    \"Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1\",\n];\n\nconst randomUA = pickRandom(userAgents);\n\nconst browser = await puppeteer.launch({\n    headless: \"new\",\n    executablePath: '/usr/bin/chromium-browser',\n    args: [\n        '--start-maximized',\n        '--no-sandbox',\n        '--window-size=1280,1024',\n        '--autoplay-policy=no-user-gesture-required',\n        '--disable-gpu',\n        '--disable-software-rasterizer',\n        '--disable-dev-shm-usage'\n    ]\n});\n\ntry {\n    await new Promise(res => setTimeout(res, 7000));\n    const page = await newInjectedPage(browser, {\n        fingerprintOptions: {\n            devices: ['mobile'],\n            operatingSystems: ['ios'],\n        },\n    });\n    await page.setViewport({width: 1280, height: 1024});\n    const foundUrls = new Set();\n    page.on('request', req => {\n        const reqUrl = req.url();\n        if (reqUrl.includes('.m3u8') || reqUrl.includes('.ts') || reqUrl.includes('stream') || reqUrl.includes('live')) {\n            foundUrls.add(reqUrl);\n        }\n    });\n\n    await page.setExtraHTTPHeaders({\n        'User-Agent': randomUA\n    });    \n\n    await page.setJavaScriptEnabled(true);\n    await page.setDefaultNavigationTimeout(60000);\n\n    await page.goto(url, {\n        waitUntil: 'networkidle0',\n        timeout: 60000\n    });\n\n    // Wait for dynamic iframes to load\n    await new Promise(resolve => setTimeout(resolve, 10000));\n    await page.reload({waitUntil: 'networkidle0'});\n    await new Promise(resolve => setTimeout(resolve, 10000));\n    \n    // Extract iframe metadata\n    const iframeMetadata = await extractIframeMetadata(page);\n    \n    // Evaluate the presence of header, footer, nav\n    const { hasHeader, hasFooter, hasNav } = await checkLayoutElements(page);\n\n    const content = await page.evaluate(() => {\n        const el = document.querySelector(\"html\");\n        return el ? el.outerHTML : \"NOT FOUND\";\n    });\n\n    const result = {\n        header_in_html: hasHeader,\n        footer_in_html: hasFooter,\n        nav_in_html: hasNav,\n        mainUrl: page.url(),\n        page_content: content,\n        network: Array.from(foundUrls),\n        iframes: iframeMetadata,\n        children: []\n    };\n\n    // Crawl frames for the main page\n    await crawlFrames(page, page.mainFrame(), result, 0, iframeMetadata);\n\n    return [{ json: result }];\n\n} catch (error) {   \n    console.error('Error during processing:', error);\n    throw error;\n} finally {\n    await browser.close();\n}\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        464
+      ],
+      "id": "4e8a5639-ed31-4d66-a260-32f052bc4cbb",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {
+    "On form submission": [
+      {
+        "json": {
+          "Site": "https://www.yalla1shoot.com/home_3/",
+          "submittedAt": "2025-12-01T03:58:30.234-05:00",
+          "formMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Classification Agent": {
+      "main": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "ai_tool": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in Python (Beta)": {
+      "main": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in Python (Beta)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a3b4deea-7377-4b9a-923c-3a407027f01e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"
+  },
+  "id": "H6RGZA2pgYl8e3Ma",
+  "tags": [
+    {
+      "updatedAt": "2025-11-30T17:01:13.222Z",
+      "createdAt": "2025-11-30T17:01:13.222Z",
+      "id": "RIOgWZXoa30mw07B",
+      "name": "Initial Testing"
+    }
+  ]
+}
