@@ -4,8 +4,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # 1. Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv python3-dev \
-    build-essential libffi-dev \
     # Chromium + deps for Puppeteer
     chromium chromium-driver \
     wget curl gnupg ca-certificates \
@@ -26,26 +24,18 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 RUN ln -s /usr/bin/chromium /usr/bin/chromium-browser
 
 # 3. Install n8n and puppeteer globally
-RUN npm install -g n8n puppeteer@20 fingerprint-injector
+RUN npm install -g n8n puppeteer@20 fingerprint-injector playwright
 
-# 4. Python venv setup
-ENV VIRTUAL_ENV=/opt/venv
-RUN python3 -m venv $VIRTUAL_ENV
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# 3.1. Install Playwright browsers (as root before switching to node user)
+RUN npx playwright install chromium --with-deps
 
-# CRITICAL FIX: Give ownership of the venv folder to 'node' immediately
-RUN chown -R node:node $VIRTUAL_ENV
+# 4. Install cheerio and html-minifier-terser in n8n's node_modules
+RUN cd /usr/local/lib/node_modules/n8n && npm install --legacy-peer-deps cheerio html-minifier-terser
 
 # 5. Setup n8n directory & Switch User
 RUN mkdir -p /home/node/.n8n && chown -R node:node /home/node
 WORKDIR /home/node
 USER node
-
-# 6. Install Python requirements (Run AS USER NODE)
-# We copy the file with node ownership
-COPY --chown=node:node requirements.txt ./
-# We run pip as node, so installed files are owned by node
-RUN pip install --upgrade pip && pip install --no-cache-dir -r ./requirements.txt
 
 # 7. Copy rest of application
 COPY --chown=node:node . .

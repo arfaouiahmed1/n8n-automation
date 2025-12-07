@@ -331,4 +331,4 @@ def scrape_with_node(target_url: str) -> Optional[dict]:
     return page_features
 
 if _name_ == "_main_":
-    scrape_with_node("_input.first().json.Site")
+    scrape_with_node("_input.first().json.Site"

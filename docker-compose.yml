@@ -3,7 +3,7 @@
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: n8n-custom
+    container_name: n8n
     ports:
       - "${N8N_PORT:-5678}:5678"
     env_file:
@@ -13,10 +13,8 @@
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
       # Security settings for external modules
       - NODE_FUNCTION_ALLOW_BUILTIN=path,fs,child_process
-      - NODE_FUNCTION_ALLOW_EXTERNAL=puppeteer,fingerprint-injector
+      - NODE_FUNCTION_ALLOW_EXTERNAL=puppeteer,fingerprint-injector,cheerio,html-minifier-terser
       - NODE_PATH=/usr/local/lib/node_modules
-      # Pointing n8n to the venv python binary
-      - N8N_PYTHON_BINARY=/opt/venv/bin/python3
       - N8N_RUNNERS_ENABLED=false
       # Environment variables from .env
       - N8N_HOST=${N8N_HOST:-localhost}
