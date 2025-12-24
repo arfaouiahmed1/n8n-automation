@@ -1,4 +1,23 @@
 ﻿services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: n8n_postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-n8n}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-Testing1234}
+      - POSTGRES_DB=${POSTGRES_DB:-n8n_pgvector}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-pgvector.sql:/docker-entrypoint-initdb.d/init-pgvector.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-n8n} -d ${POSTGRES_DB:-n8n_pgvector}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   n8n:
     build:
       context: .
@@ -8,14 +27,25 @@
       - "${N8N_PORT:-5678}:5678"
     env_file:
       - .env
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    shm_size: 2gb
     environment:
       - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - PUPPETEER_ARGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu
       # Security settings for external modules
-      - NODE_FUNCTION_ALLOW_BUILTIN=path,fs,child_process
-      - NODE_FUNCTION_ALLOW_EXTERNAL=puppeteer,fingerprint-injector,cheerio,html-minifier-terser
+      - NODE_FUNCTION_ALLOW_BUILTIN=path,fs,child_process,https,http
+      - NODE_FUNCTION_ALLOW_EXTERNAL=puppeteer,fingerprint-injector,cheerio,html-minifier-terser,cloudinary,@ghostery/adblocker-puppeteer,@ghostery/adblocker,@cliqz/adblocker-puppeteer,@cliqz/adblocker
       - NODE_PATH=/usr/local/lib/node_modules
       - N8N_RUNNERS_ENABLED=false
+      # Cloudinary configuration
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_UPLOAD_PRESET=${CLOUDINARY_UPLOAD_PRESET}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
       # Environment variables from .env
       - N8N_HOST=${N8N_HOST:-localhost}
       - N8N_PORT=${N8N_PORT:-5678}
@@ -23,6 +53,9 @@
       - TZ=${TZ:-Europe/Paris}
     volumes:
       - ./data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5678/healthz || exit 1"]
@@ -30,3 +63,6 @@
       timeout: 10s
       retries: 3
       start_period: 30s
+
+volumes:
+  postgres_data:
