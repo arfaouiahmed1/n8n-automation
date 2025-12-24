@@ -1,0 +1,1340 @@
+{
+  "name": "Full Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2896,
+        864
+      ],
+      "id": "10ebeb30-8c8e-4c70-8d64-f017584ac543",
+      "name": "When clicking ‘Execute workflow’",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "sEMqfJTMExNrS9Dq",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/sEMqfJTMExNrS9Dq",
+          "cachedResultName": "Landing Page"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "page_has_header": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_header }}",
+            "page_has_footer": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_footer }}",
+            "page_has_navbar": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_navbar }}",
+            "mainUrl": "={{ $('Call Data Pulling And Cleaning').item.json.mainUrl }}",
+            "page_links": "={{ $('Call Data Pulling And Cleaning').item.json.page_links }}",
+            "page_text_content": "={{ $('Call Data Pulling And Cleaning').item.json.page_text_content }}",
+            "page_network": "={{ $('Call Data Pulling And Cleaning').item.json.page_network }}",
+            "players_found": "={{ $('Call Data Pulling And Cleaning').item.json.players_found }}",
+            "iframe": "={{ $('Call Data Pulling And Cleaning').item.json.iframe }}",
+            "iframe_html": "={{ $('Call Data Pulling And Cleaning').item.json.iframe_html }}",
+            "suspicious_patterns": "={{ $('Call Data Pulling And Cleaning').item.json.suspicious_patterns }}",
+            "meta_description": "={{ $('Call Data Pulling And Cleaning').item.json.meta_description }}",
+            "keywords": "={{ $('Call Data Pulling And Cleaning').item.json.keywords }}",
+            "screenshot_url": "={{ $('Call Data Pulling And Cleaning').item.json.screenshot_url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mainUrl",
+              "displayName": "mainUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_links",
+              "displayName": "page_links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "page_text_content",
+              "displayName": "page_text_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_has_header",
+              "displayName": "page_has_header",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_footer",
+              "displayName": "page_has_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_navbar",
+              "displayName": "page_has_navbar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_network",
+              "displayName": "page_network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "players_found",
+              "displayName": "players_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "iframe",
+              "displayName": "iframe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "iframe_html",
+              "displayName": "iframe_html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suspicious_patterns",
+              "displayName": "suspicious_patterns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "meta_description",
+              "displayName": "meta_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1328,
+        304
+      ],
+      "id": "43e5cea3-8eb1-4a6b-b9fc-e52abc2ec46d",
+      "name": "Call 'Landing Page'",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "WRXhrAYhGxKeg0Tv",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/WRXhrAYhGxKeg0Tv",
+          "cachedResultName": "Hosting Page"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "page_has_header": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_header }}",
+            "page_has_footer": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_footer }}",
+            "page_has_navbar": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_navbar }}",
+            "mainUrl": "={{ $('Call Data Pulling And Cleaning').item.json.mainUrl }}",
+            "page_links": "={{ $('Call Data Pulling And Cleaning').item.json.page_links }}",
+            "page_text_content": "={{ $('Call Data Pulling And Cleaning').item.json.page_text_content }}",
+            "page_network": "={{ $('Call Data Pulling And Cleaning').item.json.page_network }}",
+            "players_found": "={{ $('Call Data Pulling And Cleaning').item.json.players_found }}",
+            "iframe_html": "={{ $('Call Data Pulling And Cleaning').item.json.iframe_html }}",
+            "iframe": "={{ $('Call Data Pulling And Cleaning').item.json.iframe }}",
+            "suspicious_patterns": "={{ $('Call Data Pulling And Cleaning').item.json.suspicious_patterns }}",
+            "meta_description": "={{ $('Call Data Pulling And Cleaning').item.json.meta_description }}",
+            "keywords": "={{ $('Call Data Pulling And Cleaning').item.json.keywords }}",
+            "screenshot_url": "={{ $('Call Data Pulling And Cleaning').item.json.screenshot_url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mainUrl",
+              "displayName": "mainUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_links",
+              "displayName": "page_links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "page_text_content",
+              "displayName": "page_text_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_has_header",
+              "displayName": "page_has_header",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_footer",
+              "displayName": "page_has_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_navbar",
+              "displayName": "page_has_navbar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_network",
+              "displayName": "page_network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "players_found",
+              "displayName": "players_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "iframe",
+              "displayName": "iframe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "iframe_html",
+              "displayName": "iframe_html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suspicious_patterns",
+              "displayName": "suspicious_patterns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "meta_description",
+              "displayName": "meta_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1104,
+        368
+      ],
+      "id": "a9d59a82-0a23-419a-b6a7-6e4d8c129f59",
+      "name": "Call 'Hosting Page'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "QWOrzWWj0SD4yJfg",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/QWOrzWWj0SD4yJfg",
+          "cachedResultName": "Other Page"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "page_has_header": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_header }}",
+            "page_has_footer": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_footer }}",
+            "page_has_navbar": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_navbar }}",
+            "mainUrl": "={{ $('Call Data Pulling And Cleaning').item.json.mainUrl }}",
+            "page_links": "={{ $('Call Data Pulling And Cleaning').item.json.page_links }}",
+            "page_text_content": "={{ $('Call Data Pulling And Cleaning').item.json.page_text_content }}",
+            "page_network": "={{ $('Call Data Pulling And Cleaning').item.json.page_network }}",
+            "players_found": "={{ $('Call Data Pulling And Cleaning').item.json.players_found }}",
+            "iframe": "={{ $('Call Data Pulling And Cleaning').item.json.iframe }}",
+            "iframe_html": "={{ $('Call Data Pulling And Cleaning').item.json.iframe_html }}",
+            "suspicious_patterns": "={{ $('Call Data Pulling And Cleaning').item.json.suspicious_patterns }}",
+            "meta_description": "={{ $('Call Data Pulling And Cleaning').item.json.meta_description }}",
+            "keywords": "={{ $('Call Data Pulling And Cleaning').item.json.keywords }}",
+            "screenshot_url": "={{ $('Call Data Pulling And Cleaning').item.json.screenshot_url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mainUrl",
+              "displayName": "mainUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_links",
+              "displayName": "page_links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "page_text_content",
+              "displayName": "page_text_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_has_header",
+              "displayName": "page_has_header",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_footer",
+              "displayName": "page_has_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_navbar",
+              "displayName": "page_has_navbar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_network",
+              "displayName": "page_network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "players_found",
+              "displayName": "players_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "iframe",
+              "displayName": "iframe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "iframe_html",
+              "displayName": "iframe_html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suspicious_patterns",
+              "displayName": "suspicious_patterns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "meta_description",
+              "displayName": "meta_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1328,
+        720
+      ],
+      "id": "6989f29b-0558-4f1a-9c7c-c5f8162ee211",
+      "name": "Call 'Other Page'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "TNVhAdChw9czYvLq",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/TNVhAdChw9czYvLq",
+          "cachedResultName": "Embedded Page"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "page_has_header": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_header }}",
+            "page_has_footer": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_footer }}",
+            "page_has_navbar": "={{ $('Call Data Pulling And Cleaning').item.json.page_has_navbar }}",
+            "page_links": "={{ $('Call Data Pulling And Cleaning').item.json.page_links }}",
+            "mainUrl": "={{ $('Call Data Pulling And Cleaning').item.json.mainUrl }}",
+            "page_text_content": "={{ $('Call Data Pulling And Cleaning').item.json.page_text_content }}",
+            "players_found": "={{ $('Call Data Pulling And Cleaning').item.json.players_found }}",
+            "page_network": "={{ $('Call Data Pulling And Cleaning').item.json.page_network }}",
+            "iframe": "={{ $('Call Data Pulling And Cleaning').item.json.iframe }}",
+            "iframe_html": "={{ $('Call Data Pulling And Cleaning').item.json.iframe_html }}",
+            "suspicious_patterns": "={{ $('Call Data Pulling And Cleaning').item.json.suspicious_patterns }}",
+            "meta_description": "={{ $('Call Data Pulling And Cleaning').item.json.meta_description }}",
+            "keywords": "={{ $('Call Data Pulling And Cleaning').item.json.keywords }}",
+            "screenshot_url": "={{ $('Call Data Pulling And Cleaning').item.json.screenshot_url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mainUrl",
+              "displayName": "mainUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_links",
+              "displayName": "page_links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "page_text_content",
+              "displayName": "page_text_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_has_header",
+              "displayName": "page_has_header",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_footer",
+              "displayName": "page_has_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_navbar",
+              "displayName": "page_has_navbar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_network",
+              "displayName": "page_network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "players_found",
+              "displayName": "players_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "iframe",
+              "displayName": "iframe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "iframe_html",
+              "displayName": "iframe_html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suspicious_patterns",
+              "displayName": "suspicious_patterns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "meta_description",
+              "displayName": "meta_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -880,
+        560
+      ],
+      "id": "4cf675fd-93bd-4ee4-9ea7-3ff3aced28fb",
+      "name": "Call 'Embedded Page'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "hq6I5xko5pWw8S32",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/hq6I5xko5pWw8S32",
+          "cachedResultName": "Classification Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "page_has_header": "={{ $json.page_has_header }}",
+            "page_has_footer": "={{ $json.page_has_footer }}",
+            "page_has_navbar": "={{ $json.page_has_navbar }}",
+            "mainUrl": "={{ $json.mainUrl }}",
+            "page_links": "={{ $json.page_links }}",
+            "page_text_content": "={{ $json.page_text_content }}",
+            "page_network": "={{ $json.page_network }}",
+            "players_found": "={{ $json.players_found }}",
+            "iframe": "={{ $json.iframe }}",
+            "iframe_html": "={{ $json.iframe_html }}",
+            "suspicious_patterns": "={{ $json.suspicious_patterns }}",
+            "keywords": "={{ $json.meta_description.split(',').map(k => k.trim()) }}",
+            "meta_description": "={{ $json.meta_description }}",
+            "screenshot_url": "={{ $json.screenshot_url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mainUrl",
+              "displayName": "mainUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_links",
+              "displayName": "page_links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "page_text_content",
+              "displayName": "page_text_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_has_header",
+              "displayName": "page_has_header",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_footer",
+              "displayName": "page_has_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_navbar",
+              "displayName": "page_has_navbar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_network",
+              "displayName": "page_network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "players_found",
+              "displayName": "players_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "iframe",
+              "displayName": "iframe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "iframe_html",
+              "displayName": "iframe_html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suspicious_patterns",
+              "displayName": "suspicious_patterns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "meta_description",
+              "displayName": "meta_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -1776,
+        528
+      ],
+      "id": "180b0dce-014c-4bd8-b98e-aa0b32fd9ee7",
+      "name": "Call 'Classification Agent'",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "OMNWvcX4lRKityBq",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/OMNWvcX4lRKityBq",
+          "cachedResultName": "Data Pulling And Cleaning"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "URL": "={{ $json.url }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": true
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -2000,
+        528
+      ],
+      "name": "Call Data Pulling And Cleaning",
+      "id": "c9ed4fd8-9e16-4f33-85ec-cb9417461cde"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.page_type }}",
+                    "rightValue": "landing_page",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b417449-f414-4c6a-a714-d5ebc098e7ed"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Landing Page"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "d9ec105e-57a4-4045-9938-603fdd401fb3",
+                    "leftValue": "={{ $json.page_type }}",
+                    "rightValue": "host_page",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Hosting Page"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "957bec86-d61b-4d9d-b1fc-2a0ba5e55b74",
+                    "leftValue": "={{ $json.page_type }}",
+                    "rightValue": "embed_video_page",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Embedded Page"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fba98225-6b3b-4718-895f-2ed1f906cc89",
+                    "leftValue": "={{ $json.page_type }}",
+                    "rightValue": "other",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Other Page"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1552,
+        496
+      ],
+      "id": "ddea5258-09c3-47ca-b66f-6d7002e838af",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "BQ5JgEJw8XlOMjdC",
+          "mode": "list",
+          "cachedResultName": "Classification Table",
+          "cachedResultUrl": "/projects/hxSOFHbPHeTAMYft/datatables/BQ5JgEJw8XlOMjdC"
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        -2672,
+        864
+      ],
+      "id": "e5e4fe69-e322-42f1-a421-9cfd674bffc7",
+      "name": "Get row(s)"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -2224,
+        864
+      ],
+      "id": "2bb0845e-3413-4b25-8a2c-bd7a1d8bddc7",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "compare": "={{ $json.URL }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        -2448,
+        864
+      ],
+      "id": "df221366-d6c6-4fc0-9af8-fc0341e189ea",
+      "name": "Remove Duplicates"
+    }
+  ],
+  "pinData": {
+    "Get row(s)": [
+      {
+        "json": {
+          "url": "https://freeshot.live/",
+          "id": 1,
+          "createdAt": "2025-12-16T10:25:23.615Z",
+          "updatedAt": "2025-12-16T10:25:23.615Z"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Landing Page'": {
+      "main": [
+        [
+          {
+            "node": "Call 'Hosting Page'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Hosting Page'": {
+      "main": [
+        [
+          {
+            "node": "Call 'Embedded Page'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Embedded Page'": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Other Page'": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Classification Agent'": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Data Pulling And Cleaning": {
+      "main": [
+        [
+          {
+            "node": "Call 'Classification Agent'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Call 'Landing Page'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Hosting Page'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Embedded Page'",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Other Page'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Call Data Pulling And Cleaning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b2c22814-5951-46d4-a5cf-d00bd48101e5",
+  "meta": {
+    "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"
+  },
+  "id": "rvz3bfGRSJUgbjOw",
+  "tags": []
+}

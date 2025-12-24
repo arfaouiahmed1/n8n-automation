@@ -1,0 +1,261 @@
+{
+  "name": "Classification Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "==# Web Page Classification System (Streaming Sites) — Robust Reasoning + Controlled Tool Use\n\nYou are an expert web page classifier specializing in streaming sites.\n\nYou MUST ALWAYS output using the exact Output Format section below.\nNever output raw tool results as your final answer.\nNever stop early with \"other\" if there is a reasonable chance the site is a landing/host page—investigate first.\n\n## Input Data\n\n**Page URL:** {{ $json.mainUrl }}\n\n**Text Content:**\n{{ $json.page_text_content }}\n\n**Page Structure:**\n- Has Header: {{ $json.page_has_header }}\n- Has Footer: {{ $json.page_has_footer }}\n- Has Navbar: {{ $json.page_has_navbar }}\n\n**Technical Signals:**\n- Detected Players: {{ $json.players_found }}\n- Network Requests: {{ $json.page_network }}\n- Iframes Count: {{ $json.iframe ? 1 : 0 }}\n\n**Links Sample:**\n{{ $json.page_links }}\n\n**Existing Screenshot URL (may be null):**\n{{ $json.screenshot_url }}\n\n## Page Types (definitions)\n- **landing_page**: a directory/schedule hub (matches OR live-TV channels OR categories/competitions/countries). May require clicking tabs/filters or navigating to a “Live/Matches/TV” section to reveal listings.\n- **host_page**: focuses on a single match/channel with embedded player evidence or strong streaming intent (iframe player, player libs, m3u8/mpd in network, server list).\n- **embed_video_page**: minimal player-only embed/iframe view; little/no site chrome; usually “embed/player/iframe” hints.\n- **other**: unrelated OR after investigation + limited exploration there is no discoverable streaming/directory intent.\n\n## Key Principle: classify from GIVEN DATA first (tools only if needed)\nYou are given lots of signals (text, links, network, structure). If these signals already make the page type obvious, classify immediately without tools.\n\n### High-confidence landing_page (no tools) when any strong combination appears\nTreat as landing_page with HIGH confidence if you see clear directory intent such as:\n- Many category links (countries/leagues/channels/live-tv sections) even if match cards are not visible in text\n- Branding/keywords suggest hub intent: “live tv”, “matches today”, “fixtures”, “channels”, “بث مباشر”, “مباريات اليوم”, “قنوات”\n- Navigation contains obvious sections like /live-tv, /matches, /today, /tv, /channels, /schedule, /league\n- Page appears like a hub with many internal links and navigation structure\n\n### High-confidence host_page (no tools) when streaming is obvious\nTreat as host_page with HIGH confidence if any strong streaming evidence exists:\n- m3u8/mpd in network_requests\n- iframe src clearly points to a player/embed\n- common player libraries detected (jwplayer/videojs/hls) or server list (“Server 1/2/3”)\n\n### High-confidence embed_video_page (no tools) when minimal embed is obvious\n- Minimal text/layout + embed/player URL patterns + player signals.\n\n## Tool Strategy (ONLY when needed)\nUse tools only if confidence would be below HIGH without them.\n\n### Tool order and constraints\n1) **Skeleton HTML Tool first** (cheapest, discovers hidden/tabs/load-more/iframes).\n2) **Click Tool second** (dismiss overlays, click tabs/filters/load more, or navigate).\n3) **Screenshot Tool last** (visual confirmation).\n   - If **{{ $json.screenshot_url }} is NOT null**, DO NOT call Screenshot Tool again.\n\n### Anti-early-stop exploration rule\nIf the first page is ambiguous (especially JS-heavy or content hidden), you MUST try to reveal intent:\n- Do up to **2 exploration actions total**:\n  - Click a likely “Live/Matches/TV/Today” tab/filter/load-more\n  - OR navigate to one likely internal page (prefer links containing: live, tv, match, matches, today, schedule, channel, league, بث, مباشر, مباريات, قنوات)\n- Avoid navigating to login/privacy/contact unless nothing else exists.\n- After each action, reassess classification.\n- Stop after 2 actions even if still imperfect; then choose best classification with MEDIUM confidence.\n\n## How to avoid false \"other\" on mixed news/hub sites\nSome streaming hubs also show news posts. Still classify as landing_page if there is strong hub intent:\n- Site title/branding includes “بث مباشر / مباريات اليوم / قنوات / Live TV / Watch”\n- Navigation includes live-tv/matches/channels categories\n- Internal links suggest directory structure (countries/leagues/channels), even if the homepage looks like posts\n\nClassify as other only if after investigation/exploration:\n- No streaming/directory intent is found AND content is clearly unrelated.\n\n## Output Format (MUST match exactly)\nCLASSIFICATION: [landing_page/host_page/embed_video_page/other]\nCONFIDENCE: [high/medium/low]\n\nEVIDENCE:\n- [Concrete signal from input/tools: URLs, keywords, link patterns, network hints, iframe/player hints]\n- [Concrete signal 2]\n- [Concrete signal 3]\n\nREASONING:\n[Why this type fits best, and why the closest alternative is less likely. Mention if you explored via tools/clicks.]\n\nANOMALIES:\n[Popups, paywalls, JS-only content, misleading homepage, unusual redirects, or \"None detected\"]\n\nNEXT_STEPS:\n[What workflow should do next: e.g., \"Route to Landing Page Agent for extraction\", \"Route to Host Page Agent to extract stream URLs\", \"Open iframe source\", etc.]\n\nMETADATA:\npage_type: [landing_page/host_page/embed_video_page/other]\nconfidence: [high/medium/low]\ntools_used: [list of tools called, or \"none\"]\n\nBegin directly with your classification. Do not include this prompt text in your response.",
+        "hasOutputParser": true,
+        "needsFallback": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -1088,
+        336
+      ],
+      "id": "65481ea4-bcd2-44ab-97df-4d8595ff7ff0",
+      "name": "Classification Agent"
+    },
+    {
+      "parameters": {
+        "model": "mistralai/devstral-2512:free",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1248,
+        560
+      ],
+      "id": "7566e606-ad5e-4dc8-b427-310bf5b5b5cd",
+      "name": "glm-4.5-air",
+      "credentials": {
+        "openRouterApi": {
+          "id": "1QI9uO8HxFBwGhAY",
+          "name": "Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse natural language classification output\n// Extracts only the essential structured metadata with robust fallbacks\n\nconst input = $input.first().json;\nconst responseText = input.output || input.text || '';\n\n// --- Helpers ---\nfunction norm(s) {\n  return (s || '').toString().toLowerCase();\n}\n\nfunction firstMatch(regex, text) {\n  const m = text.match(regex);\n  return m ? m[1].trim() : '';\n}\n\nfunction looksLikeToolDump(text) {\n  const t = norm(text);\n  return (\n    t.includes('found ') && t.includes('interactive elements') ||\n    t.includes('summary') && t.includes('interactive') ||\n    t.includes('grouped') && t.includes('purpose') ||\n    t.includes('detailed analysis of the interactive elements')\n  );\n}\n\n// --- Extract metadata block (primary) ---\nconst metadataMatch = responseText.match(/METADATA:\\s*([\\s\\S]*?)(?:\\n\\n|$)/i);\nlet metadata = {\n  page_type: 'unknown',\n  confidence: 'low',\n  tools_used: []\n};\n\nif (metadataMatch) {\n  const metadataText = metadataMatch[1];\n\n  const pageTypeMatch = metadataText.match(/page_type:\\s*([^\\n]+)/i);\n  if (pageTypeMatch) metadata.page_type = pageTypeMatch[1].trim();\n\n  const confidenceMatch = metadataText.match(/confidence:\\s*([^\\n]+)/i);\n  if (confidenceMatch) metadata.confidence = confidenceMatch[1].trim();\n\n  const toolsMatch = metadataText.match(/tools_used:\\s*(\\[.*?\\]|none|null)/i);\n  if (toolsMatch) {\n    const toolsStr = toolsMatch[1].trim();\n    if (toolsStr !== 'none' && toolsStr !== 'null') {\n      try {\n        metadata.tools_used = JSON.parse(toolsStr);\n      } catch (e) {\n        metadata.tools_used = toolsStr\n          .replace(/[\\[\\]]/g, '')\n          .split(',')\n          .map(t => t.trim())\n          .filter(Boolean);\n      }\n    }\n  }\n}\n\n// --- Fallback to CLASSIFICATION/CONFIDENCE lines ---\nif (metadata.page_type === 'unknown') {\n  const cls = firstMatch(/CLASSIFICATION:\\s*([^\\n]+)/i, responseText);\n  if (cls) metadata.page_type = cls.trim().toLowerCase();\n}\n\nif (!metadata.confidence || metadata.confidence === 'low') {\n  const conf = firstMatch(/CONFIDENCE:\\s*([^\\n]+)/i, responseText);\n  if (conf) metadata.confidence = conf.trim().toLowerCase();\n}\n\n// --- Robust heuristic inference if still unknown ---\nif (metadata.page_type === 'unknown') {\n  const t = norm(responseText);\n\n  // Strong landing signals (Arabic + English, streaming directories)\n  const landingSignals = [\n    'live tv', 'channels', 'schedule', 'matches', 'match', 'fixtures',\n    'بث مباشر', 'مباريات اليوم', 'مباشر', 'قنوات', 'الجدول', 'الدوريات'\n  ];\n\n  const hostSignals = [\n    '.m3u8', '.mpd', 'jwplayer', 'videojs', 'hls', 'stream',\n    'server 1', 'server1', 'watch now', 'player', 'iframe'\n  ];\n\n  const otherSignals = [\n    'privacy policy', 'terms', 'contact us', 'about us',\n    'register', 'sign up', 'login', 'cookies'\n  ];\n\n  const landingScore = landingSignals.reduce((acc, s) => acc + (t.includes(s) ? 1 : 0), 0);\n  const hostScore = hostSignals.reduce((acc, s) => acc + (t.includes(s) ? 1 : 0), 0);\n  const otherScore = otherSignals.reduce((acc, s) => acc + (t.includes(s) ? 1 : 0), 0);\n\n  // If it looks like a tool dump, we still try to classify:\n  // Many interactive links + site navigation often implies landing-like hub.\n  if (looksLikeToolDump(responseText) && landingScore >= 1) {\n    metadata.page_type = 'landing_page';\n    metadata.confidence = metadata.confidence === 'low' ? 'medium' : metadata.confidence;\n  } else if (hostScore >= 2 && landingScore === 0) {\n    metadata.page_type = 'host_page';\n    metadata.confidence = metadata.confidence === 'low' ? 'medium' : metadata.confidence;\n  } else if (landingScore >= 1) {\n    metadata.page_type = 'landing_page';\n    metadata.confidence = metadata.confidence === 'low' ? 'medium' : metadata.confidence;\n  } else if (otherScore >= 2 && hostScore === 0 && landingScore === 0) {\n    metadata.page_type = 'other';\n    metadata.confidence = metadata.confidence === 'low' ? 'medium' : metadata.confidence;\n  } else {\n    // last resort: keep unknown but avoid useless output\n    metadata.page_type = 'other';\n    metadata.confidence = 'low';\n  }\n}\n\n// --- Evidence / reasoning extraction (optional) ---\nfunction extractSection(label, nextLabels, text) {\n  const next = nextLabels.join('|');\n  const regex = new RegExp(`${label}:\\\\s*([\\\\s\\\\S]*?)(?=\\\\n\\\\n(?:${next}):|$)`, 'i');\n  const m = text.match(regex);\n  return m && m[1].trim() ? m[1].trim() : '';\n}\n\nconst evidence = extractSection('EVIDENCE', ['REASONING', 'ANOMALIES', 'NEXT_STEPS', 'METADATA'], responseText);\nconst reasoning = extractSection('REASONING', ['ANOMALIES', 'NEXT_STEPS', 'METADATA'], responseText);\n\nconst key_indicators = evidence\n  .split('\\n')\n  .filter(line => line.trim().startsWith('-'))\n  .map(line => line.replace(/^-+\\s*/, '').trim())\n  .filter(Boolean);\n\nconst notes = reasoning\n  ? (reasoning.slice(0, 300) + (reasoning.length > 300 ? '...' : ''))\n  : (looksLikeToolDump(responseText) ? 'Model output resembled tool analysis; inferred page_type via heuristics.' : 'See agent response for details');\n\nreturn [{\n  json: {\n    page_type: metadata.page_type,\n    classification_confidence: metadata.confidence,\n    key_indicators: key_indicators.length > 0 ? key_indicators : ['No structured EVIDENCE section; inferred from response/tool output'],\n    notes,\n    tools_used: metadata.tools_used\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        336
+      ],
+      "id": "0f630fc9-80b4-4298-83dd-d8b84f0885f3",
+      "name": "Classification Response Parser"
+    },
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "  {\n    \"mainUrl\": \"https://freeshot.live/\",\n    \"page_links\": [\n      {\n        \"url\": \"https://freeshot.live\",\n        \"parent_text\": \"Toggle navigation\"\n      },\n      {\n        \"url\": \"https://freeshot.live\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv\",\n        \"text\": \"Live TV\",\n        \"parent_text\": \"Live TV\\n          \\n                        +18 MyCamTV\\n                        Arabia\\n                        Argentina\\n                        Australia\\n                        Belgium & Netherlands\\n                        Brasil\\n                        Bulgaria\\n                        Canada\\n                        Czech & Slovak\\n                        EX-YU\\n                        France\\n                        Germany\\n                        Greece\\n                        Israel\\n                        Italia\\n                        Poland\\n                        Portugal\\n                        Romania\\n                        Russia\\n                        Scandinavia\\n                        Spain\\n                        Turkey\\n                        United Kingdom\\n                        USA\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/18-mycamtv\",\n        \"text\": \"+18 MyCamTV\",\n        \"parent_text\": \"+18 MyCamTV\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/arabia\",\n        \"text\": \"Arabia\",\n        \"parent_text\": \"Arabia\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/argentina\",\n        \"text\": \"Argentina\",\n        \"parent_text\": \"Argentina\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/australia\",\n        \"text\": \"Australia\",\n        \"parent_text\": \"Australia\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/belgium-netherlands\",\n        \"text\": \"Belgium & Netherlands\",\n        \"parent_text\": \"Belgium & Netherlands\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/brasil\",\n        \"text\": \"Brasil\",\n        \"parent_text\": \"Brasil\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/bulgaria\",\n        \"text\": \"Bulgaria\",\n        \"parent_text\": \"Bulgaria\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/canada\",\n        \"text\": \"Canada\",\n        \"parent_text\": \"Canada\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/czech-slovak\",\n        \"text\": \"Czech & Slovak\",\n        \"parent_text\": \"Czech & Slovak\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/ex-yu\",\n        \"text\": \"EX-YU\",\n        \"parent_text\": \"EX-YU\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/france\",\n        \"text\": \"France\",\n        \"parent_text\": \"France\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/germany\",\n        \"text\": \"Germany\",\n        \"parent_text\": \"Germany\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/greece\",\n        \"text\": \"Greece\",\n        \"parent_text\": \"Greece\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/israel\",\n        \"text\": \"Israel\",\n        \"parent_text\": \"Israel\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/italia\",\n        \"text\": \"Italia\",\n        \"parent_text\": \"Italia\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/poland\",\n        \"text\": \"Poland\",\n        \"parent_text\": \"Poland\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/portugal\",\n        \"text\": \"Portugal\",\n        \"parent_text\": \"Portugal\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/romania\",\n        \"text\": \"Romania\",\n        \"parent_text\": \"Romania\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/russia\",\n        \"text\": \"Russia\",\n        \"parent_text\": \"Russia\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/scandinavia\",\n        \"text\": \"Scandinavia\",\n        \"parent_text\": \"Scandinavia\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/spain\",\n        \"text\": \"Spain\",\n        \"parent_text\": \"Spain\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/turkey\",\n        \"text\": \"Turkey\",\n        \"parent_text\": \"Turkey\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/united-kingdom\",\n        \"text\": \"United Kingdom\",\n        \"parent_text\": \"United Kingdom\"\n      },\n      {\n        \"url\": \"https://freeshot.live/live-tv/usa\",\n        \"text\": \"USA\",\n        \"parent_text\": \"USA\"\n      },\n      {\n        \"url\": \"https://freeshot.live/login\",\n        \"text\": \"Login\",\n        \"parent_text\": \"You don't have access to premimum content kindly purchase subscription to watch this content or Login with premium account.\"\n      },\n      {\n        \"url\": \"#\",\n        \"text\": \"Continue\",\n        \"parent_text\": \"ContinueLearn more\"\n      },\n      {\n        \"url\": \"#\",\n        \"text\": \"Learn more\",\n        \"parent_text\": \"ContinueLearn more\"\n      },\n      {\n        \"url\": \"#\",\n        \"text\": \"x\",\n        \"parent_text\": \"This website is using cookiesWe use them to give you the best experience. If you continue using our website, we'll assume that you are happy to receive all cookies on this website.ContinueLearn morex\"\n      }\n    ],\n    \"page_text_content\": \"Toggle navigation Home Live TV +18 MyCamTV Arabia Argentina Australia Belgium & Netherlands Brasil Bulgaria Canada Czech & Slovak EX-YU France Germany Greece Israel Italia Poland Portugal Romania Russia Scandinavia Spain Turkey United Kingdom USA 1 × Login Alert You don't have access to premimum content kindly purchase subscription to watch this content or Login with premium account. Close <div><img alt=\\\"\\\" src=\\\"https://mc.yandex.ru/watch/90037442\\\" style=\\\"position:absolute;left:-9999px\\\"/></div> This website is using cookiesWe use them to give you the best experience. If you continue using our website, we'll assume that you are happy to receive all cookies on this website.ContinueLearn morex\",\n    \"page_has_header\": false,\n    \"page_has_footer\": true,\n    \"page_has_navbar\": true,\n    \"page_network\": [\n      \"https://freeshot.live/\",\n      \"https://freeshot.live/site_assets/css/style_dark.css\",\n      \"https://freeshot.live/site_assets/css/responsive_dark.css\",\n      \"https://freeshot.live/site_assets/css/jquery-eu-cookie-law-popup.css\",\n      \"https://freeshot.live/upload/source/logo.png\",\n      \"https://freeshot.live/site_assets/js/jquery-eu-cookie-law-popup.js\",\n      \"https://freeshot.live/site_assets/js/custom.js\",\n      \"https://freeshot.live/public/upload/source/video.mp4\",\n      \"https://freeshot.live/upload/source/favicon.ico\"\n    ],\n    \"players_found\": [],\n    \"iframe\": \"\",\n    \"iframe_html\": \"\",\n    \"suspicious_patterns\": [\n      \"base64\",\n      \"long-inline-script\"\n    ],\n    \"meta_description\": \"The best live streaming experience in sports, entertainment, news, leisure and culture. TV live channels for free on your mobile, tablet, Mac or PC.\",\n    \"keywords\": [\n      \"watch\",\n      \"live\",\n      \"website\",\n      \"freeshot\",\n      \"login\",\n      \"content\",\n      \"div\",\n      \"using\",\n      \"90037442\",\n      \"stream\"\n    ],\n    \"screenshot_url\": null\n  }"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1472,
+        336
+      ],
+      "id": "0d96285f-0704-47be-8be2-168d7a08e7a5",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Name: screenshot_tool_cloudinary\nconst puppeteer = require('puppeteer');\nconst https = require('https');\n\n/**\n * Upload image buffer to Cloudinary\n */\nasync function uploadToCloudinary(imageBuffer) {\n  const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || \"dktc34wxa\";\n  const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || \"n8n-Ahmed\";\n\n  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {\n    throw new Error(\n      `Cloudinary credentials missing: CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}, PRESET=${CLOUDINARY_UPLOAD_PRESET}`\n    );\n  }\n\n  const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;\n\n  const formData = {\n    file: base64Image,\n    upload_preset: CLOUDINARY_UPLOAD_PRESET,\n  };\n\n  const boundary = \"----n8nCloudinaryBoundary\" + Math.random().toString(16).slice(2);\n  let body = \"\";\n\n  for (const [key, value] of Object.entries(formData)) {\n    body += `--${boundary}\\r\\n`;\n    body += `Content-Disposition: form-data; name=\"${key}\"\\r\\n\\r\\n`;\n    body += `${value}\\r\\n`;\n  }\n  body += `--${boundary}--\\r\\n`;\n\n  return new Promise((resolve, reject) => {\n    const req = https.request(\n      {\n        hostname: \"api.cloudinary.com\",\n        port: 443,\n        path: `/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,\n        method: \"POST\",\n        headers: {\n          \"Content-Type\": `multipart/form-data; boundary=${boundary}`,\n          \"Content-Length\": Buffer.byteLength(body),\n        },\n      },\n      (res) => {\n        let data = \"\";\n        res.on(\"data\", (chunk) => (data += chunk));\n        res.on(\"end\", () => {\n          if (res.statusCode === 200) {\n            resolve(JSON.parse(data).secure_url);\n          } else {\n            reject(new Error(`Cloudinary upload failed: ${data}`));\n          }\n        });\n      }\n    );\n\n    req.on(\"error\", reject);\n    req.write(body);\n    req.end();\n  });\n}\n\n/**\n * Main Screenshot Function\n */\nasync function takeScreenshot() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const fullPageInput = $fromAI(\"fullPage\");\n  const fullPage = fullPageInput === true || fullPageInput === \"true\";\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\",\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: [\n      \"--no-sandbox\",\n      \"--disable-setuid-sandbox\",\n      \"--disable-dev-shm-usage\",\n    ],\n  });\n\n  try {\n    const page = await browser.newPage();\n\n    await page.setViewport({ width: 1280, height: 800 });\n    await page.setUserAgent(\n      \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36\"\n    );\n\n    await page.goto(url, {\n      waitUntil: \"domcontentloaded\",\n      timeout: 30000,\n    });\n\n    await page.waitForTimeout(2000);\n\n    let buffer;\n    let type = \"viewport\";\n\n    if (selector) {\n      try {\n        await page.waitForSelector(selector, { timeout: 5000 });\n        const element = await page.$(selector);\n\n        if (!element) {\n          return JSON.stringify({\n            status: \"error\",\n            message: `Selector found but element is null: '${selector}'`,\n          });\n        }\n\n        buffer = await element.screenshot();\n        type = `element (${selector})`;\n      } catch (err) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not screenshot element '${selector}'. ${err.message}`,\n        });\n      }\n    } else {\n      buffer = await page.screenshot({ fullPage });\n      type = fullPage ? \"full_page\" : \"viewport\";\n    }\n\n    const imageUrl = await uploadToCloudinary(buffer);\n\n    return JSON.stringify({\n      status: \"success\",\n      type,\n      image_url: imageUrl,\n      message: \"Screenshot uploaded successfully\",\n    });\n  } catch (err) {\n    return JSON.stringify({\n      status: \"error\",\n      message: err.message,\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await takeScreenshot();\n",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL of the website to screenshot\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"Optional CSS selector to screenshot a specific element (e.g., '.header', '#main-content')\"\n    },\n    \"fullPage\": {\n      \"type\": \"boolean\",\n      \"description\": \"Capture full scrollable page instead of viewport\"\n    }\n  },\n  \"required\": [\"url\"]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -992,
+        560
+      ],
+      "id": "75b11b3a-0262-4264-91de-4c12090a1f0d",
+      "name": "Screenshot Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function smartClick() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const expectNavigation = $fromAI(\"expect_navigation\") === true;\n\n  if (!url || !selector) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL and selector are required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n\n    // Navigate to page\n    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });\n    \n    const beforeUrl = page.url();\n    const beforeHTML = await page.content();\n\n    // Count match-like elements before click\n    const beforeMatchCount = await page.evaluate(() => {\n      const patterns = ['vs', 'v ', 'مقابل', 'ضد', 'match', 'live'];\n      const elements = document.querySelectorAll('a[href]');\n      let count = 0;\n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        if (patterns.some(p => text.includes(p) || href.includes(p))) {\n          count++;\n        }\n      });\n      return count;\n    });\n\n    // Handle text-based selectors\n    let clickSelector = selector;\n    if (selector.startsWith('text=')) {\n      const text = selector.slice(5).trim();\n      // Try exact match first, then contains\n      const xpath = `//*[normalize-space(text())='${text}' or contains(text(), '${text}')]`;\n      try {\n        await page.waitForXPath(xpath, { timeout: 5000 });\n        const elements = await page.$x(xpath);\n        if (elements.length > 0) {\n          await elements[0].click();\n        } else {\n          throw new Error(`Text \"${text}\" not found`);\n        }\n      } catch (e) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not find or click text \"${text}\": ${e.message}`,\n          selector_tried: selector\n        });\n      }\n    } else {\n      // CSS selector\n      try {\n        await page.waitForSelector(clickSelector, { visible: true, timeout: 5000 });\n        await page.click(clickSelector);\n      } catch (e) {\n        // Try to find similar elements\n        const suggestions = await page.evaluate((sel) => {\n          const keywords = ['load', 'more', 'show', 'عرض', 'المزيد', 'اليوم', 'live'];\n          const elements = document.querySelectorAll('button, a, div[role=\"button\"], span[onclick]');\n          const matches = [];\n          \n          elements.forEach(el => {\n            const text = (el.textContent || '').toLowerCase();\n            if (keywords.some(kw => text.includes(kw))) {\n              matches.push({\n                tag: el.tagName.toLowerCase(),\n                text: el.textContent.trim().slice(0, 50),\n                class: el.className,\n                id: el.id\n              });\n            }\n          });\n          \n          return matches.slice(0, 3);\n        }, selector);\n\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not find or click '${selector}'`,\n          selector_tried: selector,\n          suggestions: suggestions,\n          hint: \"Try using text-based selector like text=عرض المزيد\"\n        });\n      }\n    }\n\n    // Wait for changes\n    await page.waitForTimeout(expectNavigation ? 3000 : 2500);\n\n    const afterUrl = page.url();\n    const afterHTML = await page.content();\n    const navigated = beforeUrl !== afterUrl;\n    const domChanged = beforeHTML !== afterHTML;\n\n    // Count match-like elements after click\n    const afterMatchCount = await page.evaluate(() => {\n      const patterns = ['vs', 'v ', 'مقابل', 'ضد', 'match', 'live'];\n      const elements = document.querySelectorAll('a[href]');\n      let count = 0;\n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        if (patterns.some(p => text.includes(p) || href.includes(p))) {\n          count++;\n        }\n      });\n      return count;\n    });\n\n    // Extract visible text snippet (for context)\n    const newContentSnippet = await page.evaluate(() => {\n      const body = document.body;\n      if (!body) return '';\n      \n      // Remove scripts, styles\n      const clone = body.cloneNode(true);\n      clone.querySelectorAll('script, style, svg, noscript').forEach(el => el.remove());\n      \n      return clone.innerText\n        .replace(/\\s+/g, ' ')\n        .trim()\n        .slice(0, 2000);\n    });\n\n    // Check if new interactive elements appeared\n    const newInteractiveElements = await page.evaluate(() => {\n      const buttons = document.querySelectorAll('button, a, [role=\"button\"], .load-more, .show-more');\n      return Array.from(buttons).slice(0, 5).map(el => ({\n        tag: el.tagName.toLowerCase(),\n        text: (el.textContent || '').trim().slice(0, 40),\n        class: el.className,\n        visible: el.offsetWidth > 0 && el.offsetHeight > 0\n      }));\n    });\n\n    return JSON.stringify({\n      status: \"success\",\n      selector_clicked: selector,\n      navigated,\n      dom_changed: domChanged,\n      previous_url: beforeUrl,\n      current_url: afterUrl,\n      match_elements_before: beforeMatchCount,\n      match_elements_after: afterMatchCount,\n      new_matches_appeared: afterMatchCount > beforeMatchCount,\n      new_match_count: Math.max(0, afterMatchCount - beforeMatchCount),\n      content_snippet: newContentSnippet,\n      new_interactive_elements: newInteractiveElements\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      selector_tried: selector\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await smartClick();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The current page URL\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"CSS selector or text-based selector (e.g., 'text=Load More', '.load-more', '#show-more')\"\n    },\n    \"expect_navigation\": {\n      \"type\": \"boolean\",\n      \"description\": \"Set to true if clicking should navigate to a new page, false for UI state changes\",\n      \"default\": false\n    }\n  },\n  \"required\": [\"url\", \"selector\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -864,
+        560
+      ],
+      "id": "c2085826-09f5-4aac-9214-0159ecd9b72f",
+      "name": "Clicking Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function getHtmlSkeleton() {\n  const url = $fromAI(\"url\");\n  const focusTag = $fromAI(\"focus_tag\") || null;\n  const searchText = $fromAI(\"search_text\") || null;\n  const interactiveOnly = $fromAI(\"interactive_only\") !== false; // Default true\n  const includeContext = $fromAI(\"include_context\") !== false; // Default true\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n    \n    // Block unnecessary resources for speed\n    await page.setRequestInterception(true);\n    page.on('request', (req) => {\n      if (['image', 'font'].includes(req.resourceType())) {\n        req.abort();\n      } else {\n        req.continue();\n      }\n    });\n\n    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });\n    await page.waitForTimeout(1500); // Wait for dynamic content\n\n    // Extract comprehensive interactive elements with context\n    const interactiveElements = await page.evaluate((searchText) => {\n      const elements = [];\n      \n      // Target interactive elements\n      const candidates = document.querySelectorAll(\n        'button, a, input[type=\"button\"], input[type=\"submit\"], ' +\n        '[role=\"button\"], [role=\"tab\"], [onclick], ' +\n        '[class*=\"btn\"], [class*=\"button\"], [class*=\"tab\"], [class*=\"toggle\"], ' +\n        '[class*=\"load\"], [class*=\"more\"], [class*=\"show\"], [class*=\"expand\"], ' +\n        '[data-toggle], [data-tab], [data-click]'\n      );\n      \n      candidates.forEach((el, idx) => {\n        const rect = el.getBoundingClientRect();\n        const style = window.getComputedStyle(el);\n        \n        // Check visibility\n        const isVisible = rect.width > 0 && \n                         rect.height > 0 && \n                         style.display !== 'none' && \n                         style.visibility !== 'hidden' &&\n                         parseFloat(style.opacity) > 0;\n        \n        if (!isVisible) return;\n        \n        const text = (el.textContent || '').trim();\n        const tag = el.tagName.toLowerCase();\n        \n        // Apply text filter if provided\n        if (searchText && !text.toLowerCase().includes(searchText.toLowerCase())) {\n          return;\n        }\n        \n        // Generate multiple selector options\n        const selectors = [];\n        \n        if (el.id) {\n          selectors.push({\n            type: 'id',\n            value: `#${el.id}`,\n            reliability: 'high'\n          });\n        }\n        \n        const classes = el.className ? el.className.split(' ').filter(c => c.trim()) : [];\n        if (classes.length > 0) {\n          // Primary class\n          selectors.push({\n            type: 'class',\n            value: `.${classes[0]}`,\n            reliability: 'medium'\n          });\n          \n          // Combined classes (more specific)\n          if (classes.length > 1) {\n            selectors.push({\n              type: 'class_combined',\n              value: `.${classes.slice(0, 3).join('.')}`,\n              reliability: 'high'\n            });\n          }\n        }\n        \n        // Tag + class\n        if (classes.length > 0) {\n          selectors.push({\n            type: 'tag_class',\n            value: `${tag}.${classes[0]}`,\n            reliability: 'high'\n          });\n        }\n        \n        // Text-based selector (most reliable for dynamic content)\n        if (text && text.length < 50) {\n          selectors.push({\n            type: 'text',\n            value: `text=${text.slice(0, 40)}`,\n            reliability: 'high'\n          });\n        }\n        \n        // Nth-of-type (fallback)\n        const siblings = Array.from(el.parentElement?.children || []).filter(\n          child => child.tagName === el.tagName\n        );\n        const position = siblings.indexOf(el) + 1;\n        if (position > 0) {\n          selectors.push({\n            type: 'nth_type',\n            value: `${tag}:nth-of-type(${position})`,\n            reliability: 'low'\n          });\n        }\n        \n        // Get parent context\n        let parentContext = '';\n        let parent = el.parentElement;\n        let depth = 0;\n        while (parent && depth < 2) {\n          const parentTag = parent.tagName.toLowerCase();\n          const parentClass = parent.className ? `.${parent.className.split(' ')[0]}` : '';\n          parentContext = `${parentTag}${parentClass} > ${parentContext}`;\n          parent = parent.parentElement;\n          depth++;\n        }\n        \n        // Get siblings context (nearby text/elements)\n        const siblingsText = [];\n        if (el.parentElement) {\n          Array.from(el.parentElement.children).forEach(sibling => {\n            if (sibling !== el) {\n              const sibText = (sibling.textContent || '').trim().slice(0, 30);\n              if (sibText) siblingsText.push(sibText);\n            }\n          });\n        }\n        \n        elements.push({\n          index: idx,\n          tag: tag,\n          text: text.slice(0, 100),\n          href: el.href || null,\n          \n          // Element properties\n          id: el.id || null,\n          classes: classes,\n          attributes: {\n            role: el.getAttribute('role'),\n            type: el.getAttribute('type'),\n            'data-toggle': el.getAttribute('data-toggle'),\n            'data-tab': el.getAttribute('data-tab'),\n            onclick: el.onclick ? 'present' : null,\n            'aria-label': el.getAttribute('aria-label')\n          },\n          \n          // Selector options ranked by reliability\n          selectors: selectors,\n          recommended_selector: selectors.length > 0 ? selectors[0].value : `${tag}:nth-of-type(${position})`,\n          \n          // Context for better understanding\n          parent_context: parentContext.slice(0, 100),\n          siblings_context: siblingsText.slice(0, 3),\n          \n          // Visibility and interactivity\n          position: {\n            top: Math.round(rect.top),\n            left: Math.round(rect.left),\n            width: Math.round(rect.width),\n            height: Math.round(rect.height)\n          },\n          is_clickable: tag === 'a' || tag === 'button' || \n                       el.onclick !== null || \n                       el.getAttribute('role') === 'button' ||\n                       style.cursor === 'pointer',\n          \n          // Purpose inference\n          likely_purpose: inferPurpose(el, text)\n        });\n      });\n      \n      function inferPurpose(el, text) {\n        const textLower = text.toLowerCase();\n        const tag = el.tagName.toLowerCase();\n        const href = el.href || '';\n        \n        // Navigation patterns\n        if (textLower.match(/load|more|show|عرض|المزيد|expand|view all/)) {\n          return 'load_more';\n        }\n        if (textLower.match(/next|previous|prev|التالي|السابق/)) {\n          return 'pagination';\n        }\n        if (textLower.match(/today|tomorrow|date|calendar|اليوم|غدا/)) {\n          return 'date_filter';\n        }\n        if (textLower.match(/live|ongoing|now|مباشر|الآن/)) {\n          return 'live_filter';\n        }\n        if (textLower.match(/all|everything|كل|جميع/) && tag !== 'a') {\n          return 'show_all';\n        }\n        \n        // Tab/category patterns\n        const classes = el.className || '';\n        if (classes.match(/tab|nav-link|category/) || el.getAttribute('role') === 'tab') {\n          return 'tab_navigation';\n        }\n        if (classes.match(/toggle|collapse|dropdown/)) {\n          return 'toggle_content';\n        }\n        \n        // Link patterns\n        if (tag === 'a' && href) {\n          if (textLower.match(/vs|v |match|game|مقابل|ضد/)) {\n            return 'content_link';\n          }\n          if (href.includes('/live') || href.includes('/tv')) {\n            return 'category_link';\n          }\n        }\n        \n        return 'unknown';\n      }\n      \n      return elements;\n    }, searchText);\n\n    // Group elements by purpose for better organization\n    const groupedByPurpose = interactiveElements.reduce((acc, el) => {\n      const purpose = el.likely_purpose;\n      if (!acc[purpose]) acc[purpose] = [];\n      acc[purpose].push(el);\n      return acc;\n    }, {});\n\n    // Generate recommendations\n    const recommendations = [];\n    \n    if (groupedByPurpose.load_more?.length > 0) {\n      recommendations.push({\n        action: 'load_more',\n        elements: groupedByPurpose.load_more.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'high'\n        }))\n      });\n    }\n    \n    if (groupedByPurpose.tab_navigation?.length > 0) {\n      recommendations.push({\n        action: 'explore_tabs',\n        elements: groupedByPurpose.tab_navigation.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'high'\n        }))\n      });\n    }\n    \n    if (groupedByPurpose.show_all?.length > 0) {\n      recommendations.push({\n        action: 'show_all',\n        elements: groupedByPurpose.show_all.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'medium'\n        }))\n      });\n    }\n\n    return JSON.stringify({\n      status: \"success\",\n      summary: {\n        total_interactive: interactiveElements.length,\n        by_purpose: Object.keys(groupedByPurpose).map(purpose => ({\n          purpose,\n          count: groupedByPurpose[purpose].length\n        })),\n        has_load_more: (groupedByPurpose.load_more?.length || 0) > 0,\n        has_tabs: (groupedByPurpose.tab_navigation?.length || 0) > 0,\n        has_filters: (groupedByPurpose.date_filter?.length || 0) > 0 || \n                     (groupedByPurpose.live_filter?.length || 0) > 0\n      },\n      recommendations: recommendations,\n      interactive_elements: interactiveElements,\n      grouped_by_purpose: groupedByPurpose,\n      message: interactiveElements.length === 0 \n        ? \"No interactive elements found matching criteria\" \n        : `Found ${interactiveElements.length} interactive elements`\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      stack: error.stack\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await getHtmlSkeleton();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL to analyze for interactive elements\",\n      \"examples\": [\"https://example.com/schedule\", \"https://streaming-site.com/live\"]\n    },\n    \"focus_tag\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Focus only on specific HTML tags. Useful for narrowing search.\",\n      \"enum\": [\"button\", \"a\", \"div\", \"span\", \"input\"],\n      \"examples\": [\"button\", \"a\"]\n    },\n    \"search_text\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Only return elements containing this text (case-insensitive). Great for finding specific UI elements like 'Load More', 'Show All', 'Today', 'Live', 'عرض المزيد', etc.\",\n      \"examples\": [\"Load More\", \"Show All\", \"Today\", \"Live\", \"عرض المزيد\", \"اليوم\"]\n    },\n    \"interactive_only\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, only return clickable/interactive elements (buttons, links, tabs, toggles). If false, return all elements matching other criteria.\",\n      \"default\": true\n    },\n    \"include_context\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, include parent and sibling context for each element. Helps LLM understand page structure and make better selector choices.\",\n      \"default\": true\n    }\n  },\n  \"required\": [\"url\"],\n  \"examples\": [\n    {\n      \"url\": \"https://example.com/schedule\",\n      \"search_text\": \"Load More\",\n      \"interactive_only\": true\n    },\n    {\n      \"url\": \"https://streaming-site.com/live\",\n      \"focus_tag\": \"button\",\n      \"interactive_only\": true\n    },\n    {\n      \"url\": \"https://sports-site.com\",\n      \"search_text\": \"Today\",\n      \"include_context\": true\n    }\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -736,
+        560
+      ],
+      "id": "0a9eec08-3d16-4aa3-8c60-2be1a3811ff4",
+      "name": "Skeleton HTML Tool"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1472,
+        672
+      ],
+      "id": "8ec5f059-b11c-4617-a920-51fe7c4e30bf",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "GqzpOEsHq0iogdVe",
+          "name": "ahmedarfaoui2000@gmail.com"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "mistralai/devstral-2512:free",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        560
+      ],
+      "id": "9564f63a-bbdc-45b7-8f97-5afecf97d266",
+      "name": "glm-4.5-air1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "gZIv11Bc6lHr6ALa",
+          "name": "Github"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Classification Agent": {
+      "main": [
+        [
+          {
+            "node": "Classification Response Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "glm-4.5-air": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classification Response Parser": {
+      "main": [
+        []
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screenshot Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clicking Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skeleton HTML Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "glm-4.5-air1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classification Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "53a501fa-5be4-47e3-be82-9ca6ad9861ed",
+  "meta": {
+    "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"
+  },
+  "id": "hq6I5xko5pWw8S32",
+  "tags": []
+}

@@ -1,0 +1,508 @@
+{
+  "name": "Hosting Page",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# HOST PAGE STREAM EXTRACTOR\n\nYou are an expert at extracting video stream URLs from football match pages. Your goal is to find the actual streaming source (m3u8, mp4, or embed player URL).\n\n## Input Data\n\n**Match URL:** {{ $json.mainUrl }}\n\n\n**Page Structure:**\n- Has Header: {{ $json.page_has_header }}\n- Has Footer: {{ $json.page_has_footer }}\n- Has Navbar: {{ $json.page_has_navbar }}\n\n**Page Content:**\n{{ $json.page_text_content}}\n\n**Critical Technical Signals:**\n- **Players Detected:** {{ JSON.stringify($json.players_found) }}\n- **Network Requests:** {{ $json.page_network }}\n- **Iframes Present:** {{ $json.iframe ? 'Yes' : 'No' }}\n- **Iframe Source:** {{ $json.iframe || 'None' }}\n- **Iframe HTML Length:** {{ $json.iframe_html ? $json.iframe_html.length : 0 }} chars\n\n**Screenshot:** {{ $json.screenshot_url || 'Not available' }}\n\n## Your Mission\n\nExtract the video streaming source from this match page. Prioritize in this order:\n1. **Direct M3U8/MP4 URLs** (from network requests) - GOLD STANDARD\n2. **Embed Player URLs** (iframe sources) - SILVER STANDARD\n3. **Player Configuration** (JavaScript player setup) - BRONZE STANDARD\n\n## Stream Source Types\n\n### Type 1: Direct Stream URL (Best)\n**What it is:** Direct link to HLS playlist (.m3u8) or video file (.mp4, .ts)\n**Where to find:**\n- Network requests in `page_network` array\n- Common patterns: `https://cdn.example.com/hls/stream.m3u8`\n- May include: `playlist.m3u8`, `index.m3u8`, `master.m3u8`, `tracks-v1a1/mono.m3u8`\n\n**Validation:**\n- URL ends with `.m3u8`, `.ts`, `.mp4`\n- URL contains: `stream`, `hls`, `live`, `playlist`\n- NOT from: ads, trackers, analytics domains\n\n### Type 2: Embed Player URL (Good)\n**What it is:** URL to embedded video player page (often in iframe)\n**Where to find:**\n- `iframe` field (top-level iframe source)\n- Common patterns: `https://player.site.com/embed/12345`, `https://site.com/albaplayer/match-6/`\n- May include: `/player/`, `/embed/`, `/stream/`, player names (alba, plyr, video)\n\n**Validation:**\n- URL contains: `player`, `embed`, `stream`, `live`\n- Often different domain than main site\n- May have player identifier: `/albaplayer/`, `/jwplayer/`, `/videojs/`\n\n### Type 3: Multi-Server Setup (Common)\n**What it is:** Multiple embed URLs for redundancy (Server 1, Server 2, Server 3)\n**Where to find:**\n- Page text: \"Server 1\", \"Server 2\", \"سيرفر 1\", \"سيرفر 2\"\n- Multiple iframes with different sources\n- Buttons/links that switch servers\n\n**Action:** Extract all server URLs, mark primary vs backup\n\n## Extraction Workflow\n\n### PHASE 1: Network Analysis (Priority)\n1. **Check page_network for m3u8 URLs**\n   - Filter for URLs containing `.m3u8`\n   - Validate each URL (not ads/trackers)\n   - If found → This is GOLD, output immediately\n\n2. **Check for video segments (.ts files)**\n   - Pattern: `/segment-001.ts`, `/chunk-1234.ts`\n   - If found, try to construct m3u8 URL from pattern\n   - Often: replace `segment.ts` with `playlist.m3u8`\n\n3. **If direct stream found:**\n   - Extract all m3u8 URLs\n   - Test URL validity (proper domain, not tracker)\n   - Output with high confidence\n\n### PHASE 2: Iframe Analysis\n1. **Check iframe field**\n   - If present and contains player indicators → This is SILVER\n   - Validate: not ads, not social media embeds\n   - Check if it's an embed player URL\n\n2. **Check iframe_html**\n   - If iframe HTML is accessible, scan for:\n     - Video player setup code\n     - Additional nested iframes\n     - Player configuration objects\n\n3. **Look for multi-server setup**\n   - Page text mentions \"Server 1\", \"Server 2\"?\n   - Multiple iframe sources available?\n   - Extract all server URLs\n\n### PHASE 3: Interactive Extraction (Use Tools if Needed)\n\n**When to use Screenshot Tool:**\n- Need to verify if player is visible\n- Check if overlays/ads blocking player\n- Confirm multi-server button layout\n- **Usage:** `url: {{ $json.mainUrl }}, fullPage: false` (viewport only, faster)\n\n**When to use Skeleton HTML Tool:**\n- Need to find server switch buttons\n- Need to locate play button or player controls\n- Page structure unclear\n- **Usage:** `url: {{ $json.mainUrl }}, focus_tag: \"iframe\"` (find all iframes)\n- **Usage:** `url: {{ $json.mainUrl }}, search_text: \"Server\"` (find server buttons)\n\n**When to use Click Tool:**\n- Player has overlay that needs dismissal (\"Click to Play\", \"Start Stream\")\n- Need to switch to different server\n- Cookie consent blocking content\n- **Usage:** `url: {{ $json.mainUrl }}, selector: \".play-overlay\"` or `\"text=Server 2\"`\n\n**After Click:**\n- Re-check network requests for new m3u8 URLs\n- Check if iframe source changed\n- Verify player loaded\n\n### PHASE 4: Validation & Quality Check\n\nFor each extracted stream URL:\n1. **Domain validation** - Not ads.domain.com, not tracker.com\n2. **Pattern validation** - Matches known stream patterns\n3. **Accessibility** - URL is complete and well-formed\n4. **Player validation** - If embed URL, contains player indicators\n\n## Output Format\n\nProvide clear analysis followed by structured JSON:\n\n```\nEXTRACTION SUMMARY:\n[Brief: What type of stream found, where found, confidence level]\n\nEXTRACTION PROCESS:\n[Step-by-step: Network check → iframe check → tools used → stream found]\n\nSTREAM QUALITY ASSESSMENT:\n[Evaluate: Is this direct m3u8 or embed? Is it accessible? Any issues?]\n\nCHALLENGES:\n[Any difficulties: overlays, multi-server, obfuscation, failures]\n\nSTREAM_DATA:\n```json\n{\n  \"page_type\": \"host_page\",\n  \"stream_found\": true,\n  \"stream_source_type\": \"m3u8\" | \"iframe_embed\" | \"none\",\n  \"direct_stream_urls\": [\n    {\n      \"url\": \"https://cdn.example.com/hls/stream.m3u8\",\n      \"type\": \"m3u8\",\n      \"quality\": \"master\" | \"playlist\" | \"segment\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"embed_player_urls\": [\n    {\n      \"url\": \"https://player.site.com/albaplayer/match-6/\",\n      \"player_name\": \"albaplayer\",\n      \"server_label\": \"Server 1\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"player_detected\": \"albaplayer\" | \"jwplayer\" | \"videojs\" | \"none\",\n  \"tools_used\": [\"screenshot\", \"click\"],\n  \"requires_interaction\": false,\n  \"interaction_needed\": null,\n  \"extraction_notes\": \"Direct m3u8 URL found in network requests. High quality master playlist. No interaction needed.\"\n}\n```\n\nNEXT_STEPS:\n[What should happen? If embed URL, route to Embed Agent? If m3u8, store and finish?]\n```\n\n## Stream URL Validation Rules\n\n### Valid M3U8 URL:\n- ✅ Ends with `.m3u8`\n- ✅ Contains: `stream`, `hls`, `live`, `playlist`, `master`\n- ✅ Domain looks like CDN: `cdn.`, `stream.`, `video.`, or IP address\n- ✅ Path structure: `/path/to/stream.m3u8` or `/hls/playlist.m3u8`\n\n### Invalid M3U8 URL:\n- ❌ From ad domains: `doubleclick`, `googlesyndication`, `adserver`\n- ❌ From trackers: `analytics`, `tracking`, `pixel`\n- ❌ Generic endpoints: `/api/`, `/track/`, `/log/`\n\n### Valid Embed URL:\n- ✅ Contains: `player`, `embed`, `stream`, `live`\n- ✅ Has player identifier: `/albaplayer/`, `/jwplayer/`, `/videojs/`\n- ✅ Different domain from main site (usually)\n- ✅ Path suggests video content: `/match/`, `/live/`, `/stream/`\n\n### Invalid Embed URL:\n- ❌ Social media embeds: `facebook.com/plugins`, `twitter.com/embed`\n- ❌ Ad iframes: contains `ad`, `banner`, `promo`\n- ❌ Tracking pixels: 1x1 size, tracking domains\n\n## Common Patterns & Solutions\n\n### Pattern 1: Direct Stream Visible\n```\nNetwork has: https://cdn.stream.com/hls/match123.m3u8\nAction: Extract immediately, no tools needed\nOutput: stream_source_type: \"m3u8\", confidence: \"high\"\n```\n\n### Pattern 2: Embed Player Only\n```\niframe: https://player.site.com/albaplayer/match-6/\nNo m3u8 in network\nAction: Extract embed URL, mark for Embed Agent processing\nOutput: stream_source_type: \"iframe_embed\", requires_interaction: true\n```\n\n### Pattern 3: Multi-Server Setup\n```\nPage text: \"Server 1\", \"Server 2\", \"Server 3\"\nMultiple iframes or server switch buttons\nAction: Extract all server URLs, mark primary\nOutput: Multiple embed_player_urls with server labels\n```\n\n### Pattern 4: Click-to-Play\n```\nScreenshot shows \"Click to Play\" overlay\nNo stream in network yet\nAction: Use Click Tool → Re-check network\nOutput: tools_used: [\"screenshot\", \"click\"], then extract m3u8\n```\n\n### Pattern 5: Hidden Player\n```\nNo iframe visible, no m3u8 in network\nBut players_found: [\"albaplayer\"]\nAction: Use Skeleton HTML to find hidden iframe\nOutput: Find iframe in nested div, extract source\n```\n\n## Stop Conditions\n\nStop extraction when:\n1. ✅ Direct m3u8 URL found (GOLD - best case)\n2. ✅ Embed player URL found (SILVER - good case)\n3. ✅ 3 tool calls made (tool limit)\n4. ❌ No stream sources found after all attempts (failure case)\n\n## Important Guidelines\n\n### Be Thorough\n- Don't stop at first URL - check if there are multiple streams\n- Validate all URLs before marking as streams\n- Check both network AND iframe sources\n\n### Be Specific\n- Include actual URLs in your analysis\n- Name the player if detected (albaplayer, jwplayer, etc.)\n- Specify server labels if multi-server\n\n### Be Honest\n- If no stream found, say so clearly\n- Mark confidence accurately\n- Note if interaction is definitely needed\n\n### Handle Arabic\n- Server labels: \"سيرفر 1\", \"سيرفر 2\", \"سيرفر 3\"\n- Play buttons: \"تشغيل\", \"بث مباشر\"\n- Quality labels: \"جودة عالية\", \"جودة متوسطة\"\n\n### Tool Strategy\n- Use Screenshot to verify visual state\n- Use Skeleton to find hidden elements\n- Use Click only when definitely needed\n- Document why you used each tool\n\n## Examples\n\n### Example 1: Direct M3U8 Found\n```\nEXTRACTION SUMMARY:\nDirect HLS stream found in network requests. High confidence, no interaction needed.\n\nEXTRACTION PROCESS:\n1. Checked page_network array\n2. Found 2 m3u8 URLs: master playlist and backup\n3. Validated both URLs (CDN domain, proper path structure)\n4. No tools needed - direct extraction successful\n\nSTREAM QUALITY ASSESSMENT:\nExcellent. Master playlist URL indicates adaptive bitrate streaming. Backup URL provides redundancy. Both URLs from legitimate CDN domain.\n\nCHALLENGES:\nNone. Clean extraction.\n\nSTREAM_DATA:\n```json\n{\n  \"page_type\": \"host_page\",\n  \"stream_found\": true,\n  \"stream_source_type\": \"m3u8\",\n  \"direct_stream_urls\": [\n    {\n      \"url\": \"https://cdn.yalla1shoot.xyz/bein6/index.m3u8\",\n      \"type\": \"m3u8\",\n      \"quality\": \"master\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"url\": \"https://cdn.yalla1shoot.xyz/bein6/tracks-v1a1/mono.m3u8\",\n      \"type\": \"m3u8\",\n      \"quality\": \"playlist\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"embed_player_urls\": [],\n  \"player_detected\": \"native\",\n  \"tools_used\": [],\n  \"requires_interaction\": false,\n  \"interaction_needed\": null,\n  \"extraction_notes\": \"Direct m3u8 URLs found in network requests. Master and mono playlists available. Ready for immediate playback.\"\n}\n```\n\nNEXT_STEPS:\nStore stream URLs. No further processing needed. Ready for data enrichment (WHOIS/IPInfo).\n```\n\n### Example 2: Embed Player with Multi-Server\n```\nEXTRACTION SUMMARY:\nNo direct m3u8 in network. Found 3 embed player URLs (multi-server setup). Requires routing to Embed Agent for player interaction.\n\nEXTRACTION PROCESS:\n1. Checked page_network - no m3u8 URLs present\n2. Found iframe: https://bb.yalla1shoot.online/albaplayer/sports-6/\n3. Page text analysis found \"Server 1\", \"Server 2\", \"Server 3\" labels\n4. Used Skeleton HTML to find server switch buttons\n5. Extracted 3 different embed URLs from button onclick handlers\n\nSTREAM QUALITY ASSESSMENT:\nGood. Three redundant servers using AlbaPlayer. No direct stream accessible from host page - requires interaction with embed player. Standard multi-server setup for reliability.\n\nCHALLENGES:\nMultiple servers require individual processing. Each embed URL needs separate extraction attempt.\n\nSTREAM_DATA:\n```json\n{\n  \"page_type\": \"host_page\",\n  \"stream_found\": true,\n  \"stream_source_type\": \"iframe_embed\",\n  \"direct_stream_urls\": [],\n  \"embed_player_urls\": [\n    {\n      \"url\": \"https://bb.yalla1shoot.online/albaplayer/sports-6/\",\n      \"player_name\": \"albaplayer\",\n      \"server_label\": \"Server 1\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"url\": \"https://bb.yalla1shoot.online/albaplayer/sports-7/\",\n      \"player_name\": \"albaplayer\",\n      \"server_label\": \"Server 2\",\n      \"confidence\": \"high\"\n    },\n    {\n      \"url\": \"https://bb.yalla1shoot.online/albaplayer/sports-8/\",\n      \"player_name\": \"albaplayer\",\n      \"server_label\": \"Server 3\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"player_detected\": \"albaplayer\",\n  \"tools_used\": [\"skeleton_html\"],\n  \"requires_interaction\": true,\n  \"interaction_needed\": \"Each embed URL must be visited and play button clicked to reveal m3u8\",\n  \"extraction_notes\": \"Multi-server configuration with AlbaPlayer. All three servers need individual processing through Embed Agent.\"\n}\n```\n\nNEXT_STEPS:\nRoute all 3 embed URLs to Embed Page Agent sequentially. Each will require play button interaction to extract m3u8.\n```\n\n### Example 3: Click-to-Play Required\n```\nEXTRACTION SUMMARY:\nPlayer visible but not loaded. Requires click interaction to start stream and reveal m3u8 URL.\n\nEXTRACTION PROCESS:\n1. Initial network check - no m3u8 URLs\n2. Found iframe with albaplayer\n3. Called Screenshot - confirmed large play button overlay\n4. Called Skeleton HTML with focus_tag=\"button\" - found play button selector\n5. Called Click Tool on \".play-overlay\" button\n6. Re-checked network - m3u8 URL now present\n\nSTREAM QUALITY ASSESSMENT:\nExcellent. After interaction, direct m3u8 revealed. Player was ready but required user gesture to start.\n\nCHALLENGES:\nRequired 3 tool calls to extract. Play button overlay blocked automatic stream detection.\n\nSTREAM_DATA:\n```json\n{\n  \"page_type\": \"host_page\",\n  \"stream_found\": true,\n  \"stream_source_type\": \"m3u8\",\n  \"direct_stream_urls\": [\n    {\n      \"url\": \"https://stream.example.com/live/match.m3u8\",\n      \"type\": \"m3u8\",\n      \"quality\": \"master\",\n      \"confidence\": \"high\"\n    }\n  ],\n  \"embed_player_urls\": [\n    {\n      \"url\": \"https://player.example.com/embed/123\",\n      \"player_name\": \"albaplayer\",\n      \"server_label\": \"Main\",\n      \"confidence\": \"medium\"\n    }\n  ],\n  \"player_detected\": \"albaplayer\",\n  \"tools_used\": [\"screenshot\", \"skeleton_html\", \"click\"],\n  \"requires_interaction\": false,\n  \"interaction_needed\": null,\n  \"extraction_notes\": \"Stream required play button click to reveal. M3U8 successfully extracted after interaction.\"\n}\n```\n\nNEXT_STEPS:\nStore direct m3u8 URL. Stream is ready for playback.\n```\n\n## Critical Reminders\n\n1. **Network First** - Always check page_network before using tools\n2. **Validate URLs** - Not every m3u8 URL is a stream (ads, trackers)\n3. **Document Tools** - Explain why each tool was called\n4. **Multi-Server** - Extract all servers, don't stop at first\n5. **Embed vs Direct** - Clearly distinguish stream types\n6. **Be Honest** - If no stream found, say so\n7. **Quality Matters** - Master playlist > regular playlist > segments\n\n## Output Only Your Analysis\n\nBegin directly with your extraction analysis. Do not repeat these instructions.",
+        "options": {
+          "maxIterations": 50
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1408,
+        128
+      ],
+      "id": "4aea1b85-3bed-4fcc-ab55-da4c09e7ad10",
+      "name": "Hosting Page Agent"
+    },
+    {
+      "parameters": {
+        "description": "=You are the internal reasoning controller for the Landing Page Agent.\n\nYour role is to decide:\n- Which tools (if any) should be called\n- In what order\n- When the agent must stop\n\nYou do NOT extract matches.\nYou do NOT generate final output.\nYou do NOT describe page content.\n\n---\n\n## REASONING ORDER (STRICT)\n\nAlways follow this order:\n\n1. Analyze `page_text_content` + `page_links`\n2. If ≥ 10 valid match URLs are clearly visible:\n   - Do NOT call any tool\n   - Proceed directly to final output\n3. If < 10 matches or uncertainty exists:\n   - Call Screenshot Tool (full page)\n4. After screenshot:\n   - Decide if UI elements suggest hidden matches\n   - Examples: tabs, leagues, \"Live\", \"Today\", \"Load More\"\n5. Only if hidden matches are likely:\n   - Call Click Tool\n   - One interaction at a time\n6. After each click:\n   - Re-evaluate if new matches appeared\n   - If no new matches → STOP\n\n---\n\n## TOOL USAGE RULES\n\n### Screenshot Tool\n- Call only ONCE unless page visibly changes\n- Always use `fullPage = true`\n- Never call if text already exposes enough matches\n\n### Click Tool\n- Use ONLY when a visible UI control strongly implies hidden matches\n- Prefer text-based selectors first (Arabic / English)\n- Never click more than 3 times total\n- Never repeat the same selector twice\n\n---\n\n## STOP CONDITIONS (MANDATORY)\n\nImmediately stop reasoning if:\n- ≥ 22 matches are collected\n- OR no new matches appear after a click\n- OR no clickable UI exists\n\n---\n\n## FAILURE SAFETY\n\nIf:\n- No matches are found\n- AND no clickable UI exists\n→ Stop and allow final output with `matches_found = 0`\n\nDo NOT loop.\nDo NOT retry tools endlessly.\nDo NOT speculate.\n\n---\n\n## HARD CONSTRAINTS\n\n- Never hallucinate URLs\n- Never invent selectors\n- Never exceed tool call limits\n- Never override STOP conditions\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1.1,
+      "position": [
+        1280,
+        352
+      ],
+      "id": "666de60f-f485-4889-8b02-8cd5df3729d7",
+      "name": "Hosting Agent Reasoning"
+    },
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n    \"mainUrl\": \"https://www.koora-city.com/\",\n    \"page_links\": [\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"المغرب vs الإمارات\",\n        \"parent_text\": \"المغرب3:30 PM\\n0 - 0\\n15:33:56كأس العرب 2025الإمارات\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"السعودية vs الأردن\",\n        \"parent_text\": \"السعودية6:30 PM\\n0 - 0\\n18:33:56كأس العرب 2025الأردن\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"مانشستر يونايتد vs بورنموث\",\n        \"parent_text\": \"مانشستر يونايتد9:00 PM\\n0 - 0\\n21:03:56الدوري الإنجليزيبورنموث\"\n      }\n    ],\n    \"page_text_content\": \"Home Privacy Policy DMCA 🌙 🌙 × Home Privacy Policy DMCA الأمس اليوم الغد لا توجد مباريات هامة بالأمس تابعنا للحصول على آخر التحديثات المغرب3:30 PM 0 - 0 15:33:56كأس العرب 2025الإماراتالسعودية6:30 PM 0 - 0 18:33:56كأس العرب 2025الأردنمانشستر يونايتد9:00 PM 0 - 0 21:03:56الدوري الإنجليزيبورنموث لا توجد مباريات هامة غداً تابعنا لمعرفة المباريات القادمة كورة سيتي | kooracity موقع كورة سيتي هو واحد من أبرز المواقع الرياضية المتخصصة في تغطية أخبار كرة القدم. مانشستر سيتي اليوم بث مباشر ، كورة سيتي لايف بث متعدد الجودات التي تناسب الجوال koora موقع كورة سيتي لايف live بث مباشر مباريات اليوم يوتيوب مباشر ، يهدف الموقع إلى تزويد الجماهير بأحدث المستجدات والتحليلات في عالم كرة القدم موقع كورة سيتي kooracity مباريات اليوم بث مباشر هو موقع إخباري معروف يهتم بأخبار كرة القدم ويقدم محتوى مفيد وشامل لعشاق اللعبة يمكن للقراء الاعتماد على موقع كورة سيتي koora city ، للحصول على آخر الأخبار والتقارير والتحليلات الرياضية المتعلقة بالفرق واللاعبين المفضلين لديهم كورة سيتي لايف هو موقع حصري,كورة سيتي مباشر كما تتمتع kora city بميزة الاستمتاع بأعلى جودة بث مباشر لمباراة اليوم، حيث توفر صوت وفيديو عالي الجودة للبث المباشر لمباراة اليوم، مما يسمح للجماهير بمشاهدة كافة تفاصيل اللعبة وتجربة الإثارة والتشويق الغامر بالإضافة إلى ذلك, يوفر موقعنا من خلال بث مباشر كورة سيتي kooracity، مشاهدة حصرية لكافة مباريات اليوم ومزايا متنوعة أفضل مما يتخيله المشاهد، لأنه يحرص على تقديم أفضل خدمة على جميع مستوى أنحاء العالم، موقع سبورت لايف الذي يعمل بقوة وكفاءة عالية بدون تقطيع أو تشويش ويحرص على التحديث المستمر طوال فترة بث المباراة, كورة سيتي kooracity، وهو الموقع الوحيد الرسمي في بث المباريات الحصرية بدون تقطيع، ويتميز بوجود الكثير من جودات البث المباشر المتنوعة التي تناسب كافة الأجهزة.\",\n    \"page_has_header\": true,\n    \"page_has_footer\": true,\n    \"page_has_navbar\": true,\n    \"page_network\": [],\n    \"players_found\": [],\n    \"iframe\": \"\",\n    \"iframe_html\": \"\",\n    \"suspicious_patterns\": [\n      \"long-inline-script\"\n    ],\n    \"meta_description\": \"أهم مباريات اليوم بث مباشر koora city\",\n    \"keywords\": [\n      \"kooracity\",\n      \"koora\",\n      \"360\",\n      \"city\",\n      \"live\",\n      \"kora\",\n      \"2025\",\n      \"home\",\n      \"privacy\",\n      \"policy\"\n    ],\n    \"screenshot_url\": \"https://res.cloudinary.com/dktc34wxa/image/upload/v1765752966/j1bdrbkwdilntkwe892l.png\"\n  }"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        928,
+        128
+      ],
+      "id": "b7eff7ae-d915-4dec-a7a7-c370de656450",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Name: screenshot_tool_cloudinary\nconst puppeteer = require('puppeteer');\nconst https = require('https');\n\n/**\n * Upload image buffer to Cloudinary\n */\nasync function uploadToCloudinary(imageBuffer) {\n  const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || \"dktc34wxa\";\n  const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || \"n8n-Ahmed\";\n\n  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {\n    throw new Error(\n      `Cloudinary credentials missing: CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}, PRESET=${CLOUDINARY_UPLOAD_PRESET}`\n    );\n  }\n\n  const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;\n\n  const formData = {\n    file: base64Image,\n    upload_preset: CLOUDINARY_UPLOAD_PRESET,\n  };\n\n  const boundary = \"----n8nCloudinaryBoundary\" + Math.random().toString(16).slice(2);\n  let body = \"\";\n\n  for (const [key, value] of Object.entries(formData)) {\n    body += `--${boundary}\\r\\n`;\n    body += `Content-Disposition: form-data; name=\"${key}\"\\r\\n\\r\\n`;\n    body += `${value}\\r\\n`;\n  }\n  body += `--${boundary}--\\r\\n`;\n\n  return new Promise((resolve, reject) => {\n    const req = https.request(\n      {\n        hostname: \"api.cloudinary.com\",\n        port: 443,\n        path: `/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,\n        method: \"POST\",\n        headers: {\n          \"Content-Type\": `multipart/form-data; boundary=${boundary}`,\n          \"Content-Length\": Buffer.byteLength(body),\n        },\n      },\n      (res) => {\n        let data = \"\";\n        res.on(\"data\", (chunk) => (data += chunk));\n        res.on(\"end\", () => {\n          if (res.statusCode === 200) {\n            resolve(JSON.parse(data).secure_url);\n          } else {\n            reject(new Error(`Cloudinary upload failed: ${data}`));\n          }\n        });\n      }\n    );\n\n    req.on(\"error\", reject);\n    req.write(body);\n    req.end();\n  });\n}\n\n/**\n * Main Screenshot Function\n */\nasync function takeScreenshot() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const fullPageInput = $fromAI(\"fullPage\");\n  const fullPage = fullPageInput === true || fullPageInput === \"true\";\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\",\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: [\n      \"--no-sandbox\",\n      \"--disable-setuid-sandbox\",\n      \"--disable-dev-shm-usage\",\n    ],\n  });\n\n  try {\n    const page = await browser.newPage();\n\n    await page.setViewport({ width: 1280, height: 800 });\n    await page.setUserAgent(\n      \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36\"\n    );\n\n    await page.goto(url, {\n      waitUntil: \"domcontentloaded\",\n      timeout: 30000,\n    });\n\n    await page.waitForTimeout(2000);\n\n    let buffer;\n    let type = \"viewport\";\n\n    if (selector) {\n      try {\n        await page.waitForSelector(selector, { timeout: 5000 });\n        const element = await page.$(selector);\n\n        if (!element) {\n          return JSON.stringify({\n            status: \"error\",\n            message: `Selector found but element is null: '${selector}'`,\n          });\n        }\n\n        buffer = await element.screenshot();\n        type = `element (${selector})`;\n      } catch (err) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not screenshot element '${selector}'. ${err.message}`,\n        });\n      }\n    } else {\n      buffer = await page.screenshot({ fullPage });\n      type = fullPage ? \"full_page\" : \"viewport\";\n    }\n\n    const imageUrl = await uploadToCloudinary(buffer);\n\n    return JSON.stringify({\n      status: \"success\",\n      type,\n      image_url: imageUrl,\n      message: \"Screenshot uploaded successfully\",\n    });\n  } catch (err) {\n    return JSON.stringify({\n      status: \"error\",\n      message: err.message,\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await takeScreenshot();\n",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL of the website to screenshot\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"Optional CSS selector to screenshot a specific element (e.g., '.header', '#main-content')\"\n    },\n    \"fullPage\": {\n      \"type\": \"boolean\",\n      \"description\": \"Capture full scrollable page instead of viewport\"\n    }\n  },\n  \"required\": [\"url\"]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1408,
+        352
+      ],
+      "id": "b045c25c-95db-4bdc-bd53-dfc6af78ee8d",
+      "name": "Screenshot Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function smartClick() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const expectNavigation = $fromAI(\"expect_navigation\") === true;\n\n  if (!url || !selector) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL and selector are required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n\n    // Navigate to page\n    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });\n    \n    const beforeUrl = page.url();\n    const beforeHTML = await page.content();\n\n    // Count match-like elements before click\n    const beforeMatchCount = await page.evaluate(() => {\n      const patterns = ['vs', 'v ', 'مقابل', 'ضد', 'match', 'live'];\n      const elements = document.querySelectorAll('a[href]');\n      let count = 0;\n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        if (patterns.some(p => text.includes(p) || href.includes(p))) {\n          count++;\n        }\n      });\n      return count;\n    });\n\n    // Handle text-based selectors\n    let clickSelector = selector;\n    if (selector.startsWith('text=')) {\n      const text = selector.slice(5).trim();\n      // Try exact match first, then contains\n      const xpath = `//*[normalize-space(text())='${text}' or contains(text(), '${text}')]`;\n      try {\n        await page.waitForXPath(xpath, { timeout: 5000 });\n        const elements = await page.$x(xpath);\n        if (elements.length > 0) {\n          await elements[0].click();\n        } else {\n          throw new Error(`Text \"${text}\" not found`);\n        }\n      } catch (e) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not find or click text \"${text}\": ${e.message}`,\n          selector_tried: selector\n        });\n      }\n    } else {\n      // CSS selector\n      try {\n        await page.waitForSelector(clickSelector, { visible: true, timeout: 5000 });\n        await page.click(clickSelector);\n      } catch (e) {\n        // Try to find similar elements\n        const suggestions = await page.evaluate((sel) => {\n          const keywords = ['load', 'more', 'show', 'عرض', 'المزيد', 'اليوم', 'live'];\n          const elements = document.querySelectorAll('button, a, div[role=\"button\"], span[onclick]');\n          const matches = [];\n          \n          elements.forEach(el => {\n            const text = (el.textContent || '').toLowerCase();\n            if (keywords.some(kw => text.includes(kw))) {\n              matches.push({\n                tag: el.tagName.toLowerCase(),\n                text: el.textContent.trim().slice(0, 50),\n                class: el.className,\n                id: el.id\n              });\n            }\n          });\n          \n          return matches.slice(0, 3);\n        }, selector);\n\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not find or click '${selector}'`,\n          selector_tried: selector,\n          suggestions: suggestions,\n          hint: \"Try using text-based selector like text=عرض المزيد\"\n        });\n      }\n    }\n\n    // Wait for changes\n    await page.waitForTimeout(expectNavigation ? 3000 : 2500);\n\n    const afterUrl = page.url();\n    const afterHTML = await page.content();\n    const navigated = beforeUrl !== afterUrl;\n    const domChanged = beforeHTML !== afterHTML;\n\n    // Count match-like elements after click\n    const afterMatchCount = await page.evaluate(() => {\n      const patterns = ['vs', 'v ', 'مقابل', 'ضد', 'match', 'live'];\n      const elements = document.querySelectorAll('a[href]');\n      let count = 0;\n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        if (patterns.some(p => text.includes(p) || href.includes(p))) {\n          count++;\n        }\n      });\n      return count;\n    });\n\n    // Extract visible text snippet (for context)\n    const newContentSnippet = await page.evaluate(() => {\n      const body = document.body;\n      if (!body) return '';\n      \n      // Remove scripts, styles\n      const clone = body.cloneNode(true);\n      clone.querySelectorAll('script, style, svg, noscript').forEach(el => el.remove());\n      \n      return clone.innerText\n        .replace(/\\s+/g, ' ')\n        .trim()\n        .slice(0, 2000);\n    });\n\n    // Check if new interactive elements appeared\n    const newInteractiveElements = await page.evaluate(() => {\n      const buttons = document.querySelectorAll('button, a, [role=\"button\"], .load-more, .show-more');\n      return Array.from(buttons).slice(0, 5).map(el => ({\n        tag: el.tagName.toLowerCase(),\n        text: (el.textContent || '').trim().slice(0, 40),\n        class: el.className,\n        visible: el.offsetWidth > 0 && el.offsetHeight > 0\n      }));\n    });\n\n    return JSON.stringify({\n      status: \"success\",\n      selector_clicked: selector,\n      navigated,\n      dom_changed: domChanged,\n      previous_url: beforeUrl,\n      current_url: afterUrl,\n      match_elements_before: beforeMatchCount,\n      match_elements_after: afterMatchCount,\n      new_matches_appeared: afterMatchCount > beforeMatchCount,\n      new_match_count: Math.max(0, afterMatchCount - beforeMatchCount),\n      content_snippet: newContentSnippet,\n      new_interactive_elements: newInteractiveElements\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      selector_tried: selector\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await smartClick();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The current page URL\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"CSS selector or text-based selector (e.g., 'text=Load More', '.load-more', '#show-more')\"\n    },\n    \"expect_navigation\": {\n      \"type\": \"boolean\",\n      \"description\": \"Set to true if clicking should navigate to a new page, false for UI state changes\",\n      \"default\": false\n    }\n  },\n  \"required\": [\"url\", \"selector\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1536,
+        352
+      ],
+      "id": "817d2cf2-9db8-4a04-b5b9-acbed62dcca9",
+      "name": "Clicking Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function getHtmlSkeleton() {\n  const url = $fromAI(\"url\");\n  const focusTag = $fromAI(\"focus_tag\") || null;\n  const searchText = $fromAI(\"search_text\") || null;\n  const interactiveOnly = $fromAI(\"interactive_only\") !== false; // Default true\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n    \n    // Block images and fonts for speed\n    await page.setRequestInterception(true);\n    page.on('request', (req) => {\n      if (['image', 'font', 'stylesheet'].includes(req.resourceType())) {\n        req.abort();\n      } else {\n        req.continue();\n      }\n    });\n\n    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });\n\n    const skeleton = await page.evaluate((focusTag, searchText, interactiveOnly) => {\n      function cleanAttributes(attrs) {\n        const keep = ['id', 'class', 'href', 'role', 'type', 'aria-label', 'onclick', 'data-toggle'];\n        return Array.from(attrs)\n          .filter(attr => keep.includes(attr.name))\n          .map(attr => `${attr.name}=\"${attr.value}\"`)\n          .join(' ');\n      }\n\n      function isInteractive(node) {\n        const tagName = node.tagName.toLowerCase();\n        const interactiveTags = ['button', 'a', 'input', 'select', 'textarea'];\n        const hasClickHandler = node.onclick || node.getAttribute('onclick');\n        const hasRole = node.getAttribute('role') === 'button' || node.getAttribute('role') === 'tab';\n        const hasCursor = window.getComputedStyle(node).cursor === 'pointer';\n        \n        return interactiveTags.includes(tagName) || hasClickHandler || hasRole || hasCursor;\n      }\n\n      function shouldInclude(node, depth) {\n        if (depth > 8) return false;\n        if (node.nodeType !== 1) return false;\n        \n        const tagName = node.tagName.toLowerCase();\n        const ignore = ['script', 'style', 'svg', 'path', 'meta', 'link', 'noscript', 'iframe'];\n        if (ignore.includes(tagName)) return false;\n\n        // If focusing on specific tag\n        if (focusTag && tagName !== focusTag.toLowerCase()) {\n          const hasMatchingChild = node.querySelector(focusTag.toLowerCase());\n          if (!hasMatchingChild) return false;\n        }\n\n        // If searching for specific text\n        if (searchText) {\n          const text = node.textContent || '';\n          const hasText = text.toLowerCase().includes(searchText.toLowerCase());\n          if (!hasText) {\n            const hasMatchingChild = Array.from(node.children).some(child => \n              (child.textContent || '').toLowerCase().includes(searchText.toLowerCase())\n            );\n            if (!hasMatchingChild) return false;\n          }\n        }\n\n        // If interactive only mode\n        if (interactiveOnly) {\n          const isInteractiveNode = isInteractive(node);\n          const hasInteractiveChild = Array.from(node.children).some(child => isInteractive(child));\n          if (!isInteractiveNode && !hasInteractiveChild) return false;\n        }\n\n        return true;\n      }\n\n      function traverse(node, depth = 0) {\n        if (!shouldInclude(node, depth)) return '';\n        \n        const tagName = node.tagName.toLowerCase();\n        const attrs = cleanAttributes(node.attributes);\n        const text = node.childNodes.length === 1 && node.childNodes[0].nodeType === 3 \n          ? node.childNodes[0].textContent.trim().slice(0, 50) \n          : '';\n\n        // If leaf node with text\n        if (text && node.children.length === 0) {\n          return `\\n${'  '.repeat(depth)}<${tagName} ${attrs}>${text}</${tagName}>`;\n        }\n\n        // Build children\n        let childrenHtml = '';\n        for (const child of node.children) {\n          childrenHtml += traverse(child, depth + 1);\n        }\n\n        // Only output if has attributes or children\n        if (attrs || childrenHtml.trim().length > 0) {\n          return `\\n${'  '.repeat(depth)}<${tagName} ${attrs}>${childrenHtml}\\n${'  '.repeat(depth)}</${tagName}>`;\n        }\n\n        return childrenHtml;\n      }\n\n      return traverse(document.body, 0);\n    }, focusTag, searchText, interactiveOnly);\n\n    // Extract interactive elements summary\n    const interactiveSummary = await page.evaluate(() => {\n      const interactive = [];\n      const elements = document.querySelectorAll('button, a, [role=\"button\"], [onclick], .load-more, .show-more, .tab, [data-toggle]');\n      \n      elements.forEach((el, idx) => {\n        if (el.offsetWidth > 0 && el.offsetHeight > 0) { // Visible only\n          interactive.push({\n            index: idx,\n            tag: el.tagName.toLowerCase(),\n            text: (el.textContent || '').trim().slice(0, 60),\n            id: el.id || null,\n            class: el.className || null,\n            selector: el.id ? `#${el.id}` : (el.className ? `.${el.className.split(' ')[0]}` : el.tagName.toLowerCase())\n          });\n        }\n      });\n      \n      return interactive.slice(0, 15); // Limit to first 15\n    });\n\n    return JSON.stringify({\n      status: \"success\",\n      skeleton_html: skeleton.slice(0, 10000), // Token limit\n      interactive_elements: interactiveSummary,\n      element_count: interactiveSummary.length,\n      message: interactiveSummary.length === 0 ? \"No interactive elements found\" : `Found ${interactiveSummary.length} interactive elements`\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await getHtmlSkeleton();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL to analyze\"\n    },\n    \"focus_tag\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Focus only on specific tags (e.g., 'button', 'a', 'div')\"\n    },\n    \"search_text\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Only return elements containing this text (e.g., 'Load More', 'عرض المزيد', 'Live')\"\n    },\n    \"interactive_only\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, only return clickable/interactive elements (default: true)\",\n      \"default\": true\n    }\n  },\n  \"required\": [\"url\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1664,
+        352
+      ],
+      "id": "e8a1160e-1acf-446c-a9b1-0fede3e9796a",
+      "name": "Skeleton HTML Tool"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "hq6I5xko5pWw8S32",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/hq6I5xko5pWw8S32",
+          "cachedResultName": "Classification Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "page_has_header": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_has_header', ``, 'boolean') }}",
+            "page_has_footer": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_has_footer', ``, 'boolean') }}",
+            "page_has_navbar": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_has_navbar', ``, 'boolean') }}",
+            "mainUrl": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('mainUrl', ``, 'string') }}",
+            "page_links": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_links', ``, 'json') }}",
+            "page_text_content": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_text_content', ``, 'string') }}",
+            "page_network": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_network', ``, 'json') }}",
+            "players_found": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('players_found', ``, 'json') }}",
+            "iframe": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('iframe', ``, 'string') }}",
+            "iframe_html": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('iframe_html', ``, 'string') }}",
+            "suspicious_patterns": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('suspicious_patterns', ``, 'json') }}",
+            "meta_description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('meta_description', ``, 'string') }}",
+            "keywords": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('keywords', ``, 'json') }}",
+            "screenshot_url": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('screenshot_url', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mainUrl",
+              "displayName": "mainUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_links",
+              "displayName": "page_links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "page_text_content",
+              "displayName": "page_text_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_has_header",
+              "displayName": "page_has_header",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_footer",
+              "displayName": "page_has_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_navbar",
+              "displayName": "page_has_navbar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_network",
+              "displayName": "page_network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "players_found",
+              "displayName": "players_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "iframe",
+              "displayName": "iframe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "iframe_html",
+              "displayName": "iframe_html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suspicious_patterns",
+              "displayName": "suspicious_patterns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "meta_description",
+              "displayName": "meta_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1792,
+        352
+      ],
+      "id": "1111842f-89b3-45bb-9b3c-2322076ce65c",
+      "name": "Call 'Classification Agent'"
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * HOST PAGE STREAM EXTRACTOR – OUTPUT CLEANER\n * n8n Function / Code Node\n */\n\nconst raw = $json;\n\n// -----------------------------\n// 1. Extract JSON block safely\n// -----------------------------\nfunction extractJson(input) {\n  if (typeof input === 'object') return input;\n\n  const jsonMatch = input.match(/```json\\s*([\\s\\S]*?)\\s*```/i);\n  if (!jsonMatch) {\n    throw new Error(\"No JSON block found in agent output\");\n  }\n\n  return JSON.parse(jsonMatch[1]);\n}\n\nlet data;\ntry {\n  data = extractJson(raw);\n} catch (err) {\n  throw new Error(\"JSON extraction failed: \" + err.message);\n}\n\n// -----------------------------\n// 2. URL validation rules\n// -----------------------------\nconst INVALID_PATTERNS = [\n  'facebook.com/plugins', 'twitter.com/embed', 'instagram.com',\n  'ad', 'banner', 'promo', 'doubleclick', 'googlesyndication',\n  'analytics', 'tracking', 'pixel'\n];\n\nfunction isValidStreamUrl(url) {\n  if (!url || typeof url !== 'string') return false;\n  if (!url.startsWith('http')) return false;\n  return !INVALID_PATTERNS.some(p => url.toLowerCase().includes(p));\n}\n\n// -----------------------------\n// 3. Normalize a single stream\n// -----------------------------\nfunction normalizeDirectStream(s) {\n  if (!isValidStreamUrl(s.url)) return null;\n  return {\n    url: s.url.trim(),\n    type: ['m3u8','mp4','ts'].includes(s.type) ? s.type : 'unknown',\n    quality: s.quality || 'unknown',\n    confidence: ['high','medium','low'].includes(s.confidence) ? s.confidence : 'low'\n  };\n}\n\nfunction normalizeEmbedStream(s) {\n  if (!isValidStreamUrl(s.url)) return null;\n  return {\n    url: s.url.trim(),\n    player_name: s.player_name || 'unknown',\n    server_label: s.server_label || 'Main',\n    confidence: ['high','medium','low'].includes(s.confidence) ? s.confidence : 'low'\n  };\n}\n\n// -----------------------------\n// 4. Deduplicate streams\n// -----------------------------\nconst seenDirect = new Set();\nconst cleanedDirectStreams = [];\n\nfor (const s of data.direct_stream_urls || []) {\n  const n = normalizeDirectStream(s);\n  if (!n) continue;\n  const key = n.url;\n  if (seenDirect.has(key)) continue;\n  seenDirect.add(key);\n  cleanedDirectStreams.push(n);\n}\n\nconst seenEmbed = new Set();\nconst cleanedEmbedStreams = [];\n\nfor (const s of data.embed_player_urls || []) {\n  const n = normalizeEmbedStream(s);\n  if (!n) continue;\n  const key = n.url;\n  if (seenEmbed.has(key)) continue;\n  seenEmbed.add(key);\n  cleanedEmbedStreams.push(n);\n}\n\n// -----------------------------\n// 5. Determine player_detected\n// -----------------------------\nlet playerDetected = data.player_detected || 'none';\nif (playerDetected === 'none' && cleanedEmbedStreams.length > 0) {\n  playerDetected = cleanedEmbedStreams[0].player_name || 'unknown';\n}\n\n// -----------------------------\n// 6. Final clean output\n// -----------------------------\nreturn {\n  page_type: data.page_type || 'host_page',\n  stream_found: cleanedDirectStreams.length > 0 || cleanedEmbedStreams.length > 0,\n  stream_source_type: cleanedDirectStreams.length > 0 ? 'm3u8' :\n                      cleanedEmbedStreams.length > 0 ? 'iframe_embed' : 'none',\n  direct_stream_urls: cleanedDirectStreams,\n  embed_player_urls: cleanedEmbedStreams,\n  player_detected: playerDetected,\n  tools_used: data.tools_used || [],\n  requires_interaction: !!data.requires_interaction,\n  interaction_needed: data.interaction_needed || null,\n  extraction_notes: data.extraction_notes || 'Cleaned and validated by n8n'\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        128
+      ],
+      "id": "4e09413c-1f8a-437c-98bc-13d3bddc9620",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1152,
+        352
+      ],
+      "id": "3ec31986-ed79-4e99-9e34-fb448da18b0d",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "wHrR6siDkCdkk1cm",
+          "name": "arfaoui.ahmed.1@esprit.tn"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "mainUrl": "https://www.koora-city.com/",
+          "page_links": [
+            {
+              "url": "https://www.koora-city.com/"
+            },
+            {
+              "url": "https://www.koora-city.com/"
+            },
+            {
+              "url": "https://www.koora-city.com/",
+              "text": "Home",
+              "parent_text": "Home"
+            },
+            {
+              "url": "https://www.koora-city.com/privacy-policy/",
+              "text": "Privacy Policy",
+              "parent_text": "Privacy Policy"
+            },
+            {
+              "url": "https://www.koora-city.com/dmca/",
+              "text": "DMCA",
+              "parent_text": "DMCA"
+            },
+            {
+              "url": "https://www.koora-city.com/"
+            },
+            {
+              "url": "https://www.koora-city.com/"
+            },
+            {
+              "url": "https://www.koora-city.com/",
+              "text": "Home",
+              "parent_text": "Home"
+            },
+            {
+              "url": "https://www.koora-city.com/privacy-policy/",
+              "text": "Privacy Policy",
+              "parent_text": "Privacy Policy"
+            },
+            {
+              "url": "https://www.koora-city.com/dmca/",
+              "text": "DMCA",
+              "parent_text": "DMCA"
+            },
+            {
+              "url": "#",
+              "title": "المغرب vs الإمارات",
+              "parent_text": "المغرب3:30 PM0 - 004:41:29كأس العرب 2025الإمارات"
+            },
+            {
+              "url": "#",
+              "title": "السعودية vs الأردن",
+              "parent_text": "السعودية6:30 PM0 - 007:41:29كأس العرب 2025الأردن"
+            },
+            {
+              "url": "#",
+              "title": "مانشستر يونايتد vs بورنموث",
+              "parent_text": "مانشستر يونايتد9:00 PM0 - 010:11:29الدوري الإنجليزيبورنموث"
+            }
+          ],
+          "page_text_content": "Home Privacy Policy DMCA 🌙 🌙 × Home Privacy Policy DMCA الأمساليومالغدلا توجد مباريات هامة بالأمستابعنا للحصول على آخر التحديثاتالمغرب3:30 PM0 - 004:41:29كأس العرب 2025الإماراتالسعودية6:30 PM0 - 007:41:29كأس العرب 2025الأردنمانشستر يونايتد9:00 PM0 - 010:11:29الدوري الإنجليزيبورنموثلا توجد مباريات هامة غداًتابعنا لمعرفة المباريات القادمة كورة سيتي | kooracity موقع كورة سيتي هو واحد من أبرز المواقع الرياضية المتخصصة في تغطية أخبار كرة القدم. مانشستر سيتي اليوم بث مباشر ، كورة سيتي لايف بث متعدد الجودات التي تناسب الجوال koora موقع كورة سيتي لايف live بث مباشر مباريات اليوم يوتيوب مباشر ، يهدف الموقع إلى تزويد الجماهير بأحدث المستجدات والتحليلات في عالم كرة القدم موقع كورة سيتي kooracity مباريات اليوم بث مباشر هو موقع إخباري معروف يهتم بأخبار كرة القدم ويقدم محتوى مفيد وشامل لعشاق اللعبة يمكن للقراء الاعتماد على موقع كورة سيتي koora city ، للحصول على آخر الأخبار والتقارير والتحليلات الرياضية المتعلقة بالفرق واللاعبين المفضلين لديهم كورة سيتي لايف هو موقع حصري,كورة سيتي مباشر كما تتمتع kora city بميزة الاستمتاع بأعلى جودة بث مباشر لمباراة اليوم، حيث توفر صوت وفيديو عالي الجودة للبث المباشر لمباراة اليوم، مما يسمح للجماهير بمشاهدة كافة تفاصيل اللعبة وتجربة الإثارة والتشويق الغامر بالإضافة إلى ذلك, يوفر موقعنا من خلال بث مباشر كورة سيتي kooracity، مشاهدة حصرية لكافة مباريات اليوم ومزايا متنوعة أفضل مما يتخيله المشاهد، لأنه يحرص على تقديم أفضل خدمة على جميع مستوى أنحاء العالم، موقع سبورت لايف الذي يعمل بقوة وكفاءة عالية بدون تقطيع أو تشويش ويحرص على التحديث المستمر طوال فترة بث المباراة, كورة سيتي kooracity، وهو الموقع الوحيد الرسمي في بث المباريات الحصرية بدون تقطيع، ويتميز بوجود الكثير من جودات البث المباشر المتنوعة التي تناسب كافة الأجهزة.",
+          "page_has_header": true,
+          "page_has_footer": true,
+          "page_has_navbar": true,
+          "page_network": [],
+          "players_found": [],
+          "iframe": "",
+          "iframe_html": "",
+          "suspicious_patterns": [
+            "long-inline-script"
+          ],
+          "meta_description": "أهم مباريات اليوم بث مباشر koora city",
+          "keywords": [
+            "kooracity",
+            "koora",
+            "360",
+            "city",
+            "pm0",
+            "live",
+            "kora",
+            "2025",
+            "home",
+            "privacy"
+          ],
+          "screenshot_url": "https://res.cloudinary.com/dktc34wxa/image/upload/v1765792115/nxibpxc3ejosga4cjtr7.png"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Hosting Page Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hosting Agent Reasoning": {
+      "ai_tool": [
+        [
+          {
+            "node": "Hosting Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Hosting Page Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screenshot Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Hosting Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clicking Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Hosting Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skeleton HTML Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Hosting Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Classification Agent'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Hosting Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Hosting Page Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "182afed0-afd6-41b6-a756-8193c9439f68",
+  "meta": {
+    "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"
+  },
+  "id": "WRXhrAYhGxKeg0Tv",
+  "tags": []
+}

@@ -38,7 +38,7 @@
       - PUPPETEER_ARGS=--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu
       # Security settings for external modules
       - NODE_FUNCTION_ALLOW_BUILTIN=path,fs,child_process,https,http
-      - NODE_FUNCTION_ALLOW_EXTERNAL=puppeteer,fingerprint-injector,cheerio,html-minifier-terser,cloudinary,@ghostery/adblocker-puppeteer,@ghostery/adblocker,@cliqz/adblocker-puppeteer,@cliqz/adblocker
+      - NODE_FUNCTION_ALLOW_EXTERNAL=puppeteer,fingerprint-injector,cheerio,html-minifier-terser,cloudinary
       - NODE_PATH=/usr/local/lib/node_modules
       - N8N_RUNNERS_ENABLED=false
       # Cloudinary configuration

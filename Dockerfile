@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxdamage1 libxext6 libxfixes3 libxrandr2 libxrender1 \
     libxss1 libxtst6 xdg-utils lsb-release \
     ffmpeg xvfb \
-    jq nano \
+    jq nano unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Puppeteer env & Fix
@@ -32,7 +32,7 @@ RUN set -eux; \
         npm config set fetch-retry-mintimeout 20000; \
         npm config set fetch-retry-maxtimeout 120000; \
         for i in 1 2 3; do \
-            npm install -g n8n@1.123.6 puppeteer@20 fingerprint-injector @ghostery/adblocker-puppeteer && break; \
+            npm install -g n8n@1.123.6 puppeteer@20 fingerprint-injector && break; \
             echo "npm install failed (attempt $i), retrying..."; \
             sleep 10; \
         done
@@ -40,6 +40,13 @@ RUN set -eux; \
 
 # 4. Install cheerio, html-minifier-terser, and cloudinary in n8n's node_modules
 RUN cd /usr/local/lib/node_modules/n8n && npm install --legacy-peer-deps cheerio html-minifier-terser cloudinary
+
+# 4.5 Download and install uBlock Origin Lite
+RUN mkdir -p /opt/ublock && \
+    wget -O /tmp/ublock.zip https://github.com/uBlockOrigin/uBOL-home/releases/download/2025.1224.1544/uBOLite_2025.1224.1544.chromium.mv3.zip && \
+    unzip /tmp/ublock.zip -d /opt/ublock && \
+    rm /tmp/ublock.zip && \
+    chmod -R 755 /opt/ublock
 
 # 5. Cloudinary configuration (set via docker-compose or environment variables)
 ENV CLOUDINARY_CLOUD_NAME="dktc34wxa"

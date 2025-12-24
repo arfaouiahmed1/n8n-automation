@@ -1,0 +1,411 @@
+{
+  "name": "Other Page",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# OTHER PAGE CLASSIFIER & HANDLER\n\nYou are a classifier for pages that don't fit the main football streaming categories. Your job is to verify the \"other\" classification and determine if the page should be processed further or discarded.\n\n## Input Data\n\n**Page URL:** {{ $json.mainUrl }}\n\n\n**Page Content:**\n{{ $json.page_text_content}}\n\n**Page Structure:**\n- Has Header: {{ $json.page_has_header }}\n- Has Footer: {{ $json.page_has_footer }}\n- Has Navbar: {{ $json.page_has_navbar }}\n\n**Technical Signals:**\n- Players: {{ JSON.stringify($json.players_found) }}\n- Network: {{ $json.page_network }}\n- Keywords: {{ JSON.stringify($json.keywords) }}\n\n**Screenshot:** {{ $json.screenshot_url || 'Not available' }}\n\n## Your Mission\n\nVerify this page is truly \"other\" (not a misclassified streaming page) and categorize the type of \"other\" page for proper handling.\n\n## Page Categories\n\n### 1. Misclassified Streaming Pages (Needs Rerouting)\n**Description:** Actually IS a streaming page but was misclassified\n**Signals:**\n- Contains \"vs\" or \"مقابل\" patterns\n- Has team names and match times\n- Contains video players or stream indicators\n- Network has m3u8 URLs\n\n**Action:** Reclassify and route to correct agent\n\n### 2. Support/Navigation Pages (Discard)\n**Description:** Legitimate site pages but not streaming\n**Examples:**\n- About Us, Contact, Privacy Policy, DMCA\n- FAQ, Help, Support\n- Site navigation pages\n**Action:** Mark as \"discard\" - not valuable\n\n### 3. Error/Redirect Pages (Discard)\n**Description:** Error messages, 404s, redirects\n**Examples:**\n- \"Page Not Found\"\n- \"Content Unavailable\"\n- \"Redirecting...\"\n- Loading placeholders\n**Action:** Mark as \"discard\" - error state\n\n### 4. Ad/Betting Pages (Discard)\n**Description:** Advertisements, betting sites, casino promotions\n**Examples:**\n- Sports betting platforms\n- Casino advertisements\n- Promotional landing pages\n**Signals:** Keywords like \"bet\", \"odds\", \"casino\", \"bonus\"\n**Action:** Mark as \"discard\" - unwanted content\n\n### 5. Social Media/External (Discard)\n**Description:** Social media platforms or external services\n**Examples:**\n- Facebook, Twitter, Instagram pages\n- YouTube, TikTok\n- Telegram, WhatsApp links\n**Action:** Mark as \"discard\" - external platform\n\n### 6. News/Blog Articles (Low Priority)\n**Description:** News articles about matches/teams\n**Examples:**\n- Match previews/reviews\n- Team news\n- Transfer rumors\n**Action:** Mark as \"review\" - may have streaming context\n\n### 7. Authentication Pages (Discard)\n**Description:** Login, register, account pages\n**Examples:**\n- Sign in, Sign up\n- Password reset\n- Account settings\n**Action:** Mark as \"discard\" - not content\n\n### 8. Schedule/Listings Only (Potential Value)\n**Description:** Match schedules without links\n**Examples:**\n- Calendar view only\n- Fixture lists without clickable matches\n**Action:** Mark as \"review\" - may need manual processing\n\n## Verification Workflow\n\n### STEP 1: Quick Pattern Check\nLook for streaming indicators:\n- \"vs\", \"مقابل\", team names\n- Match times, leagues\n- \"live\", \"stream\", \"watch\"\n- Player libraries\n- M3U8 URLs in network\n\n**If found:** Likely misclassified → Reclassify\n\n### STEP 2: Content Analysis\nIdentify page type from content:\n- Read page_text_content for keywords\n- Check URL structure\n- Review keywords array\n- Analyze page purpose\n\n### STEP 3: Tool Usage (If Needed)\nUse Screenshot Tool ONLY if:\n- Content is ambiguous\n- Suspicion of misclassification\n- Need visual confirmation\n\n**Usage:** `url: {{ $json.mainUrl }}, fullPage: true`\n\n### STEP 4: Final Decision\nCategorize as one of 8 types above\nProvide action: reclassify / discard / review\n\n## Output Format\n\n```\nVERIFICATION SUMMARY:\n[Is this truly \"other\"? What type? Action needed?]\n\nANALYSIS:\n[Evidence from text, URL, structure that led to conclusion]\n\nRECLASSIFICATION CHECK:\n[Any signals this might be streaming page? Or confirmed \"other\"?]\n\nCATEGORY_DECISION:\n```json\n{\n  \"page_type\": \"other\",\n  \"verified_as_other\": true,\n  \"other_category\": \"support_pages\" | \"error_redirect\" | \"ad_betting\" | \"social_media\" | \"news_article\" | \"authentication\" | \"schedule_only\" | \"misclassified\",\n  \"action\": \"discard\" | \"reclassify\" | \"review\",\n  \"reclassify_as\": null | \"landing_page\" | \"host_page\",\n  \"confidence\": \"high\" | \"medium\" | \"low\",\n  \"reasoning\": \"Brief explanation of category and action\",\n  \"contains_streaming_value\": false,\n  \"tools_used\": []\n}\n```\n\nNEXT_STEPS:\n[What should workflow do? Discard? Reroute? Flag for review?]\n```\n\n## Decision Rules\n\n### Reclassify if:\n- ✅ Contains 2+ match \"vs\" patterns\n- ✅ Has video player + team names\n- ✅ Network has m3u8 URLs\n- ✅ URL structure matches /match/, /live/, /stream/\n\n### Discard if:\n- ✅ Clear non-streaming content (about, contact, privacy)\n- ✅ Error page or redirect\n- ✅ Betting/gambling site\n- ✅ Social media platform\n- ✅ Login/registration page\n\n### Review if:\n- ⚠️ News article about upcoming match\n- ⚠️ Schedule list (may link to streams)\n- ⚠️ Ambiguous content\n- ⚠️ Low confidence in category\n\n## Examples\n\n### Example 1: Support Page (Discard)\n```\nVERIFICATION SUMMARY:\nConfirmed as \"other\" - Privacy Policy page. Standard legal content. No streaming value.\n\nANALYSIS:\n- URL: /privacy-policy\n- Content: Legal text about data collection, cookies, user rights\n- Keywords: [\"privacy\", \"policy\", \"data\", \"rights\", \"cookies\"]\n- No match patterns, team names, or streaming indicators\n- Has header/footer/navbar (full site structure)\n\nRECLASSIFICATION CHECK:\nNo streaming indicators present. Definitely not a misclassified streaming page.\n\nCATEGORY_DECISION:\n```json\n{\n  \"page_type\": \"other\",\n  \"verified_as_other\": true,\n  \"other_category\": \"support_pages\",\n  \"action\": \"discard\",\n  \"reclassify_as\": null,\n  \"confidence\": \"high\",\n  \"reasoning\": \"Privacy policy page with legal text. No streaming content or value.\",\n  \"contains_streaming_value\": false,\n  \"tools_used\": []\n}\n```\n\nNEXT_STEPS:\nDiscard this URL. Mark as processed. No further action needed.\n```\n\n### Example 2: Misclassified Host Page (Reclassify)\n```\nVERIFICATION SUMMARY:\nMISCLASSIFIED! This is actually a host page, not \"other\". Contains single match with embedded player.\n\nANALYSIS:\n- URL: /match/liverpool-vs-chelsea\n- Content: \"Liverpool vs Chelsea - Live Stream - 20:00 GMT\"\n- Players found: [\"albaplayer\"]\n- Has iframe with embed player\n- Single match focus, not a schedule\n- Classification likely failed due to minimal text content\n\nRECLASSIFICATION CHECK:\nStrong streaming indicators:\n- Single \"vs\" pattern (Liverpool vs Chelsea)\n- Match time present (20:00 GMT)\n- Video player detected (albaplayer)\n- Iframe present with player source\n- URL structure: /match/{team-vs-team}\n\nCATEGORY_DECISION:\n```json\n{\n  \"page_type\": \"other\",\n  \"verified_as_other\": false,\n  \"other_category\": \"misclassified\",\n  \"action\": \"reclassify\",\n  \"reclassify_as\": \"host_page\",\n  \"confidence\": \"high\",\n  \"reasoning\": \"Contains single match with video player and embed iframe. Clear host page misclassified as other due to minimal text.\",\n  \"contains_streaming_value\": true,\n  \"tools_used\": []\n}\n```\n\nNEXT_STEPS:\nReroute to Host Page Agent for stream extraction. This should not have been classified as \"other\".\n```\n\n### Example 3: Betting Site (Discard)\n```\nVERIFICATION SUMMARY:\nConfirmed \"other\" - Sports betting platform. Not a streaming site.\n\nANALYSIS:\n- URL: /sports/football/odds\n- Content: Betting odds, \"Place Bet\", \"Odds: 2.5\", \"Bonus: 100%\"\n- Keywords: [\"bet\", \"odds\", \"bonus\", \"casino\", \"wager\"]\n- Has team names but in betting context (odds listings)\n- No video players, no m3u8, no streaming indicators\n\nRECLASSIFICATION CHECK:\nNot a streaming page. Teams mentioned only for betting odds context.\n\nCATEGORY_DECISION:\n```json\n{\n  \"page_type\": \"other\",\n  \"verified_as_other\": true,\n  \"other_category\": \"ad_betting\",\n  \"action\": \"discard\",\n  \"reclassify_as\": null,\n  \"confidence\": \"high\",\n  \"reasoning\": \"Sports betting platform with odds listings. Contains team names but for gambling context, not streaming.\",\n  \"contains_streaming_value\": false,\n  \"tools_used\": []\n}\n```\n\nNEXT_STEPS:\nDiscard this URL. Log as betting site. No streaming value.\n```\n\n### Example 4: News Article (Review)\n```\nVERIFICATION SUMMARY:\nConfirmed \"other\" - News article about upcoming match. May have contextual value for future processing.\n\nANALYSIS:\n- URL: /news/liverpool-vs-chelsea-preview\n- Content: Match preview article with team analysis, predictions, lineup speculation\n- Keywords: [\"match\", \"preview\", \"lineup\", \"prediction\"]\n- Mentions match time and where to watch\n- No video player or stream links currently\n- Full article format (800+ words)\n\nRECLASSIFICATION CHECK:\nNot a streaming page currently, but article mentions \"Watch live on BeIN Sports\" - contextual information.\n\nCATEGORY_DECISION:\n```json\n{\n  \"page_type\": \"other\",\n  \"verified_as_other\": true,\n  \"other_category\": \"news_article\",\n  \"action\": \"review\",\n  \"reclassify_as\": null,\n  \"confidence\": \"high\",\n  \"reasoning\": \"News article about match with preview content. Mentions broadcast info but doesn't provide stream. May have contextual value.\",\n  \"contains_streaming_value\": false,\n  \"tools_used\": []\n}\n```\n\nNEXT_STEPS:\nMark for manual review. May extract match metadata (teams, time, broadcaster) for reference even without stream.\n```\n\n## Important Guidelines\n\n### Be Quick\n- Most \"other\" pages should be obvious\n- Don't over-analyze clearly discardable pages\n- Use tools only if genuinely uncertain\n\n### Be Thorough on Ambiguity\n- If any doubt about misclassification, investigate\n- Better to reclassify correctly than discard streaming page\n- Check for hidden streaming indicators\n\n### Be Specific\n- Clearly state which of 8 categories\n- Explain reasoning\n- Cite actual evidence from page\n\n### Be Decisive\n- \"Discard\" for 80% of \"other\" pages\n- \"Reclassify\" for true misclassifications\n- \"Review\" only for genuinely ambiguous cases\n\n## Tool Usage\n\n**Screenshot Tool:**\n- Use if: Content ambiguous, possible misclassification\n- Don't use if: Obviously support/error/betting page\n- Limit: 1 tool call maximum for \"other\" pages\n\n## Critical Reminders\n\n1. **Most \"other\" = Discard** - This is expected\n2. **Catch Misclassifications** - Don't let streaming pages slip through\n3. **Be Fast** - Other pages shouldn't take long to verify\n4. **Clear Actions** - Discard/Reclassify/Review, no ambiguity\n5. **No Value ≠ Error** - It's OK to have \"other\" pages, just categorize correctly\n\n## Output Only Your Analysis\n\nBegin directly with your verification. Do not repeat these instructions.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        288,
+        608
+      ],
+      "id": "424af894-27a0-4ad3-84ec-65bc5ad67b0b",
+      "name": "Other Page Agent"
+    },
+    {
+      "parameters": {
+        "model": "z-ai/glm-4.5-air:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        32,
+        832
+      ],
+      "id": "16912e0e-22fc-4c14-9147-2d26b648d37f",
+      "name": "glm-4.5-air4",
+      "credentials": {
+        "openRouterApi": {
+          "id": "1QI9uO8HxFBwGhAY",
+          "name": "Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n    \"mainUrl\": \"https://www.koora-city.com/\",\n    \"page_links\": [\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"المغرب vs الإمارات\",\n        \"parent_text\": \"المغرب3:30 PM\\n0 - 0\\n15:33:56كأس العرب 2025الإمارات\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"السعودية vs الأردن\",\n        \"parent_text\": \"السعودية6:30 PM\\n0 - 0\\n18:33:56كأس العرب 2025الأردن\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"مانشستر يونايتد vs بورنموث\",\n        \"parent_text\": \"مانشستر يونايتد9:00 PM\\n0 - 0\\n21:03:56الدوري الإنجليزيبورنموث\"\n      }\n    ],\n    \"page_text_content\": \"Home Privacy Policy DMCA 🌙 🌙 × Home Privacy Policy DMCA الأمس اليوم الغد لا توجد مباريات هامة بالأمس تابعنا للحصول على آخر التحديثات المغرب3:30 PM 0 - 0 15:33:56كأس العرب 2025الإماراتالسعودية6:30 PM 0 - 0 18:33:56كأس العرب 2025الأردنمانشستر يونايتد9:00 PM 0 - 0 21:03:56الدوري الإنجليزيبورنموث لا توجد مباريات هامة غداً تابعنا لمعرفة المباريات القادمة كورة سيتي | kooracity موقع كورة سيتي هو واحد من أبرز المواقع الرياضية المتخصصة في تغطية أخبار كرة القدم. مانشستر سيتي اليوم بث مباشر ، كورة سيتي لايف بث متعدد الجودات التي تناسب الجوال koora موقع كورة سيتي لايف live بث مباشر مباريات اليوم يوتيوب مباشر ، يهدف الموقع إلى تزويد الجماهير بأحدث المستجدات والتحليلات في عالم كرة القدم موقع كورة سيتي kooracity مباريات اليوم بث مباشر هو موقع إخباري معروف يهتم بأخبار كرة القدم ويقدم محتوى مفيد وشامل لعشاق اللعبة يمكن للقراء الاعتماد على موقع كورة سيتي koora city ، للحصول على آخر الأخبار والتقارير والتحليلات الرياضية المتعلقة بالفرق واللاعبين المفضلين لديهم كورة سيتي لايف هو موقع حصري,كورة سيتي مباشر كما تتمتع kora city بميزة الاستمتاع بأعلى جودة بث مباشر لمباراة اليوم، حيث توفر صوت وفيديو عالي الجودة للبث المباشر لمباراة اليوم، مما يسمح للجماهير بمشاهدة كافة تفاصيل اللعبة وتجربة الإثارة والتشويق الغامر بالإضافة إلى ذلك, يوفر موقعنا من خلال بث مباشر كورة سيتي kooracity، مشاهدة حصرية لكافة مباريات اليوم ومزايا متنوعة أفضل مما يتخيله المشاهد، لأنه يحرص على تقديم أفضل خدمة على جميع مستوى أنحاء العالم، موقع سبورت لايف الذي يعمل بقوة وكفاءة عالية بدون تقطيع أو تشويش ويحرص على التحديث المستمر طوال فترة بث المباراة, كورة سيتي kooracity، وهو الموقع الوحيد الرسمي في بث المباريات الحصرية بدون تقطيع، ويتميز بوجود الكثير من جودات البث المباشر المتنوعة التي تناسب كافة الأجهزة.\",\n    \"page_has_header\": true,\n    \"page_has_footer\": true,\n    \"page_has_navbar\": true,\n    \"page_network\": [],\n    \"players_found\": [],\n    \"iframe\": \"\",\n    \"iframe_html\": \"\",\n    \"suspicious_patterns\": [\n      \"long-inline-script\"\n    ],\n    \"meta_description\": \"أهم مباريات اليوم بث مباشر koora city\",\n    \"keywords\": [\n      \"kooracity\",\n      \"koora\",\n      \"360\",\n      \"city\",\n      \"live\",\n      \"kora\",\n      \"2025\",\n      \"home\",\n      \"privacy\",\n      \"policy\"\n    ],\n    \"screenshot_url\": \"https://res.cloudinary.com/dktc34wxa/image/upload/v1765752966/j1bdrbkwdilntkwe892l.png\"\n  }"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -192,
+        608
+      ],
+      "id": "2aa2a449-33af-45e6-af8e-6b03c43a7b8b",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "description": "# Other Page Agent Reasoning Controller\n\nYou control the reasoning process for the Other Page Classifier & Handler agent.\n\nYour role is to decide:\n- Is this truly \"other\" or misclassified?\n- What category of \"other\" page is this?\n- Should tools be used for verification?\n- What action to take (discard/reclassify/review)?\n\nYou do NOT classify pages yourself.\nYou do NOT describe content.\nYou do NOT generate the final output.\n\n---\n\n## Reasoning Framework\n\n### STEP 1: Misclassification Check (CRITICAL)\n\n**Before categorizing as \"other\", verify it's not a streaming page:**\n\n```\nCheck for streaming indicators:\n1. Text patterns:\n   - Contains \"vs\" or \"مقابل\" (2+ times)\n   - Team names visible\n   - Match times present\n   \n2. Technical signals:\n   - players_found not empty\n   - page_network has m3u8\n   - iframe with player source\n   \n3. URL structure:\n   - Contains: /match/, /live/, /stream/, /watch/\n   - Team names in URL\n\nIF 2+ streaming indicators present:\n  → MISCLASSIFIED\n  → Decide: landing_page or host_page?\n  → Action: reclassify\n```\n\n---\n\n## Categorization Decision Tree\n\n### Category 1: Misclassified (Priority - Check First)\n```\nSignals:\n- Match patterns in text (vs, مقابل)\n- Video players detected\n- M3U8 in network\n- Match-focused URL structure\n\nDecision: RECLASSIFY\nDetermine: landing_page or host_page?\n- Multiple matches → landing_page\n- Single match + player → host_page\n\nTool usage: None needed (evidence clear)\n```\n\n### Category 2: Support/Navigation (Most Common)\n```\nSignals:\n- URL: /about, /contact, /privacy, /dmca, /faq\n- Content: Legal text, contact forms, help info\n- Keywords: privacy, policy, contact, help, dmca\n\nDecision: DISCARD\nReasoning: Legitimate site pages but no streaming value\n\nTool usage: None needed (obvious from URL/content)\n```\n\n### Category 3: Error/Redirect\n```\nSignals:\n- Text: \"404\", \"Not Found\", \"Error\", \"Redirecting\"\n- Very short text (< 100 chars)\n- Loading messages only\n- Broken page indicators\n\nDecision: DISCARD\nReasoning: Error state, not content\n\nTool usage: Screenshot only if ambiguous\n```\n\n### Category 4: Ad/Betting\n```\nSignals:\n- URL contains: bet, betting, casino, odds, wager\n- Text contains: \"place bet\", \"odds\", \"bonus\", \"casino\"\n- Keywords: bet, odds, gambling, wager\n- May have team names but in betting context\n\nDecision: DISCARD\nReasoning: Gambling/betting site, not streaming\n\nTool usage: None needed (clear from keywords)\n```\n\n### Category 5: Social Media/External\n```\nSignals:\n- URL: facebook.com, twitter.com, instagram.com\n- Domain: youtube.com, tiktok.com\n- Social platform structure\n\nDecision: DISCARD\nReasoning: External platform, not site content\n\nTool usage: None needed (obvious from domain)\n```\n\n### Category 6: News/Blog Article\n```\nSignals:\n- URL: /news/, /blog/, /article/\n- Long text (> 1000 chars)\n- Article format (title, body, date)\n- Keywords: news, article, blog, preview\n\nDecision: REVIEW (potential contextual value)\nReasoning: May contain match info (teams, time, broadcaster)\n\nTool usage: None needed (clear from structure)\n```\n\n### Category 7: Authentication\n```\nSignals:\n- URL: /login, /register, /signup, /signin\n- Text: \"Email\", \"Password\", \"Sign In\", \"Create Account\"\n- Form fields detected\n- Keywords: login, register, auth\n\nDecision: DISCARD\nReasoning: Auth page, not content\n\nTool usage: None needed (obvious)\n```\n\n### Category 8: Schedule/Listings Only\n```\nSignals:\n- Calendar view of matches\n- Fixture lists without links\n- Schedule table with no clickable matches\n- Future match dates only\n\nDecision: REVIEW (may need manual processing)\nReasoning: Has match info but no stream access\n\nTool usage: Screenshot if unclear whether links exist\n```\n\n---\n\n## Tool Decision Logic\n\n### Screenshot Tool\n\n**Use when:**\n- Category unclear from text alone\n- Suspicion of misclassification (has some streaming signals)\n- Need to verify if links are clickable (schedule page)\n- Page appears blank but should have content\n\n**Don't use when:**\n- Category is obvious (privacy policy, login page)\n- URL clearly indicates type (/about, /contact)\n- Keywords definitively categorize page (betting site)\n\n**Decision pattern:**\n```\nIF (has some streaming signals OR category ambiguous) AND confidence < medium:\n  → Call Screenshot for visual confirmation\nELSE:\n  → No tools needed, categorize from text/URL\n```\n\n### Tool Budget: 1 Maximum\n\nOther pages should be quick to categorize. If 1 screenshot doesn't clarify, make best judgment and mark confidence as low.\n\n---\n\n## Reclassification Decision\n\n**When to reclassify as landing_page:**\n```\nEvidence needed:\n- 3+ match \"vs\" patterns in text\n- Multiple team names\n- Schedule or listing format\n- Match times for different matches\n\nConfidence: High if all present\n```\n\n**When to reclassify as host_page:**\n```\nEvidence needed:\n- 1-2 match \"vs\" patterns (single match focus)\n- Video player detected (players_found not empty)\n- Iframe with player source\n- URL structure: /match/{team-vs-team}\n\nConfidence: High if player + single match\n```\n\n**When NOT to reclassify:**\n```\n- Page has match mentions but in non-streaming context (news, betting)\n- Old/archived content\n- Match schedule without any links\n```\n\n---\n\n## Action Decision Matrix\n\n| Category | Default Action | Exception |\n|----------|---------------|-----------|\n| Misclassified | RECLASSIFY | None |\n| Support Pages | DISCARD | None |\n| Error/Redirect | DISCARD | None |\n| Ad/Betting | DISCARD | None |\n| Social Media | DISCARD | None |\n| News Article | REVIEW | If no match context → DISCARD |\n| Authentication | DISCARD | None |\n| Schedule Only | REVIEW | If clearly no links → DISCARD |\n\n---\n\n## Confidence Levels\n\n### High Confidence:\n- Category obvious from URL or keywords\n- Clear evidence for decision\n- No ambiguity\n\n### Medium Confidence:\n- Category likely but some uncertainty\n- Could benefit from screenshot but not critical\n- Evidence is circumstantial\n\n### Low Confidence:\n- Multiple possible categories\n- Conflicting signals\n- Screenshot used but still unclear\n\n---\n\n## Example Reasoning Patterns\n\n### Example 1: Clear Discard\n```\nInput:\n- URL: /privacy-policy\n- Content: \"This Privacy Policy explains...\"\n- Keywords: [\"privacy\", \"policy\", \"data\", \"cookie\"]\n\nReasoning:\nURL clearly indicates privacy policy page. Content confirms legal text. No streaming indicators whatsoever.\n\nDecision: NO TOOLS\nCategory: support_pages\nAction: DISCARD\nConfidence: HIGH\n```\n\n### Example 2: Misclassification Detected\n```\nInput:\n- URL: /match/liverpool-vs-chelsea\n- Content: \"Liverpool vs Chelsea - Live at 20:00\"\n- players_found: [\"albaplayer\"]\n- iframe: present\n\nReasoning:\nClear streaming indicators: single match in URL, \"vs\" pattern, player detected, iframe present. This is a host page, not \"other\".\n\nDecision: NO TOOLS (evidence clear)\nCategory: misclassified\nAction: RECLASSIFY as host_page\nConfidence: HIGH\n```\n\n### Example 3: Betting Site\n```\nInput:\n- URL: /football/matches/odds\n- Content: \"Odds: 2.5 | Place Bet | Bonus 100%\"\n- Keywords: [\"bet\", \"odds\", \"wager\"]\n\nReasoning:\nClear betting context. Has team names but only for odds listings. No video players, no streaming indicators. Domain focused on gambling.\n\nDecision: NO TOOLS\nCategory: ad_betting\nAction: DISCARD\nConfidence: HIGH\n```\n\n### Example 4: Ambiguous - Use Screenshot\n```\nInput:\n- URL: /schedule\n- Content: 150 chars of match names\n- Some \"vs\" patterns\n- No clear links in text\n\nReasoning:\nCould be: (a) schedule with clickable links (misclassified landing_page), or (b) static schedule (discard). Text alone unclear.\n\nDecision: USE SCREENSHOT\nTool: Screenshot → Shows: Static table, no clickable links, just dates\n\nResult:\nCategory: schedule_only\nAction: DISCARD\nConfidence: MEDIUM\n```\n\n### Example 5: News Article\n```\nInput:\n- URL: /news/liverpool-match-preview\n- Content: 800 chars, article format\n- Keywords: [\"preview\", \"match\", \"lineup\"]\n- Text mentions: \"Watch on BeIN Sports\"\n\nReasoning:\nNews article about upcoming match. Has contextual info (broadcaster) but no stream. May be valuable for metadata extraction later.\n\nDecision: NO TOOLS\nCategory: news_article\nAction: REVIEW\nConfidence: HIGH\n```\n\n---\n\n## Speed vs Accuracy Trade-off\n\n**Other pages should be FAST:**\n- 80% should be categorized in < 1 second (no tools)\n- 15% may need 1 screenshot\n- 5% remain ambiguous (mark low confidence, make best guess)\n\n**Priority:**\n1. Catch misclassifications (streaming pages wrongly marked \"other\")\n2. Quickly discard obvious non-streaming pages\n3. Flag ambiguous cases for review\n\n---\n\n## Critical Decision Points\n\n### Decision Point 1: Misclassified?\n```\nQuestion: Does this have streaming value?\nEvidence: Match patterns, players, m3u8, URL structure\nIf YES → Reclassify (landing_page or host_page)\nIf NO → Continue to categorization\n```\n\n### Decision Point 2: Category Type?\n```\nQuestion: What type of \"other\" is this?\nEvidence: URL, keywords, content structure\nChoose from 8 categories\n```\n\n### Decision Point 3: Tool Needed?\n```\nQuestion: Is category clear from text/URL?\nIf YES → No tools, categorize immediately\nIf NO → Use screenshot once\n```\n\n### Decision Point 4: Action?\n```\nQuestion: What should workflow do next?\nOptions: discard (most common), reclassify, review\nDefault: discard\n```\n\n---\n\n## Optimization Strategies\n\n### Minimize Tool Usage:\n- Check URL first (fastest indicator)\n- Check keywords next\n- Use screenshot only when necessary\n\n### Maximize Accuracy:\n- Don't rush misclassification check\n- Better to reclassify than discard streaming page\n- When in doubt about streaming, investigate\n\n### Balance Speed and Quality:\n- Fast discard of obvious pages (privacy, login, betting)\n- Careful check of ambiguous pages (has some match content)\n- Quick review category assignment (news, schedule)\n\n---\n\n## Critical Reminders\n\n1. **Misclassification Check First** - Don't miss streaming pages\n2. **80% = Discard** - Most \"other\" pages have no value\n3. **Fast Processing** - Other pages shouldn't slow workflow\n4. **Clear Actions** - Always specify discard/reclassify/review\n5. **Tool Limit = 1** - One screenshot max, then decide\n6. **Document Reasoning** - Explain category choice\n\n---\n\nYour reasoning is INTERNAL. The agent uses your decisions to categorize and route pages appropriately. Focus on accurate categorization with minimal tool usage."
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        832
+      ],
+      "id": "4bac7076-056b-4174-9974-872d331b48c3",
+      "name": "Think"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Name: screenshot_tool_cloudinary\nconst puppeteer = require('puppeteer');\nconst https = require('https');\n\n/**\n * Upload image buffer to Cloudinary\n */\nasync function uploadToCloudinary(imageBuffer) {\n  const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || \"dktc34wxa\";\n  const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || \"n8n-Ahmed\";\n\n  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {\n    throw new Error(\n      `Cloudinary credentials missing: CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}, PRESET=${CLOUDINARY_UPLOAD_PRESET}`\n    );\n  }\n\n  const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;\n\n  const formData = {\n    file: base64Image,\n    upload_preset: CLOUDINARY_UPLOAD_PRESET,\n  };\n\n  const boundary = \"----n8nCloudinaryBoundary\" + Math.random().toString(16).slice(2);\n  let body = \"\";\n\n  for (const [key, value] of Object.entries(formData)) {\n    body += `--${boundary}\\r\\n`;\n    body += `Content-Disposition: form-data; name=\"${key}\"\\r\\n\\r\\n`;\n    body += `${value}\\r\\n`;\n  }\n  body += `--${boundary}--\\r\\n`;\n\n  return new Promise((resolve, reject) => {\n    const req = https.request(\n      {\n        hostname: \"api.cloudinary.com\",\n        port: 443,\n        path: `/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,\n        method: \"POST\",\n        headers: {\n          \"Content-Type\": `multipart/form-data; boundary=${boundary}`,\n          \"Content-Length\": Buffer.byteLength(body),\n        },\n      },\n      (res) => {\n        let data = \"\";\n        res.on(\"data\", (chunk) => (data += chunk));\n        res.on(\"end\", () => {\n          if (res.statusCode === 200) {\n            resolve(JSON.parse(data).secure_url);\n          } else {\n            reject(new Error(`Cloudinary upload failed: ${data}`));\n          }\n        });\n      }\n    );\n\n    req.on(\"error\", reject);\n    req.write(body);\n    req.end();\n  });\n}\n\n/**\n * Main Screenshot Function\n */\nasync function takeScreenshot() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const fullPageInput = $fromAI(\"fullPage\");\n  const fullPage = fullPageInput === true || fullPageInput === \"true\";\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\",\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: [\n      \"--no-sandbox\",\n      \"--disable-setuid-sandbox\",\n      \"--disable-dev-shm-usage\",\n    ],\n  });\n\n  try {\n    const page = await browser.newPage();\n\n    await page.setViewport({ width: 1280, height: 800 });\n    await page.setUserAgent(\n      \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36\"\n    );\n\n    await page.goto(url, {\n      waitUntil: \"domcontentloaded\",\n      timeout: 30000,\n    });\n\n    await page.waitForTimeout(2000);\n\n    let buffer;\n    let type = \"viewport\";\n\n    if (selector) {\n      try {\n        await page.waitForSelector(selector, { timeout: 5000 });\n        const element = await page.$(selector);\n\n        if (!element) {\n          return JSON.stringify({\n            status: \"error\",\n            message: `Selector found but element is null: '${selector}'`,\n          });\n        }\n\n        buffer = await element.screenshot();\n        type = `element (${selector})`;\n      } catch (err) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not screenshot element '${selector}'. ${err.message}`,\n        });\n      }\n    } else {\n      buffer = await page.screenshot({ fullPage });\n      type = fullPage ? \"full_page\" : \"viewport\";\n    }\n\n    const imageUrl = await uploadToCloudinary(buffer);\n\n    return JSON.stringify({\n      status: \"success\",\n      type,\n      image_url: imageUrl,\n      message: \"Screenshot uploaded successfully\",\n    });\n  } catch (err) {\n    return JSON.stringify({\n      status: \"error\",\n      message: err.message,\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await takeScreenshot();\n",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL of the website to screenshot\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"Optional CSS selector to screenshot a specific element (e.g., '.header', '#main-content')\"\n    },\n    \"fullPage\": {\n      \"type\": \"boolean\",\n      \"description\": \"Capture full scrollable page instead of viewport\"\n    }\n  },\n  \"required\": [\"url\"]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        416,
+        832
+      ],
+      "id": "ffa15002-c159-474a-a498-82bae843a90a",
+      "name": "Screenshot Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function smartClick() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const expectNavigation = $fromAI(\"expect_navigation\") === true;\n\n  if (!url || !selector) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL and selector are required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n\n    // Navigate to page\n    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });\n    \n    const beforeUrl = page.url();\n    const beforeHTML = await page.content();\n\n    // Count match-like elements before click\n    const beforeMatchCount = await page.evaluate(() => {\n      const patterns = ['vs', 'v ', 'مقابل', 'ضد', 'match', 'live'];\n      const elements = document.querySelectorAll('a[href]');\n      let count = 0;\n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        if (patterns.some(p => text.includes(p) || href.includes(p))) {\n          count++;\n        }\n      });\n      return count;\n    });\n\n    // Handle text-based selectors\n    let clickSelector = selector;\n    if (selector.startsWith('text=')) {\n      const text = selector.slice(5).trim();\n      // Try exact match first, then contains\n      const xpath = `//*[normalize-space(text())='${text}' or contains(text(), '${text}')]`;\n      try {\n        await page.waitForXPath(xpath, { timeout: 5000 });\n        const elements = await page.$x(xpath);\n        if (elements.length > 0) {\n          await elements[0].click();\n        } else {\n          throw new Error(`Text \"${text}\" not found`);\n        }\n      } catch (e) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not find or click text \"${text}\": ${e.message}`,\n          selector_tried: selector\n        });\n      }\n    } else {\n      // CSS selector\n      try {\n        await page.waitForSelector(clickSelector, { visible: true, timeout: 5000 });\n        await page.click(clickSelector);\n      } catch (e) {\n        // Try to find similar elements\n        const suggestions = await page.evaluate((sel) => {\n          const keywords = ['load', 'more', 'show', 'عرض', 'المزيد', 'اليوم', 'live'];\n          const elements = document.querySelectorAll('button, a, div[role=\"button\"], span[onclick]');\n          const matches = [];\n          \n          elements.forEach(el => {\n            const text = (el.textContent || '').toLowerCase();\n            if (keywords.some(kw => text.includes(kw))) {\n              matches.push({\n                tag: el.tagName.toLowerCase(),\n                text: el.textContent.trim().slice(0, 50),\n                class: el.className,\n                id: el.id\n              });\n            }\n          });\n          \n          return matches.slice(0, 3);\n        }, selector);\n\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not find or click '${selector}'`,\n          selector_tried: selector,\n          suggestions: suggestions,\n          hint: \"Try using text-based selector like text=عرض المزيد\"\n        });\n      }\n    }\n\n    // Wait for changes\n    await page.waitForTimeout(expectNavigation ? 3000 : 2500);\n\n    const afterUrl = page.url();\n    const afterHTML = await page.content();\n    const navigated = beforeUrl !== afterUrl;\n    const domChanged = beforeHTML !== afterHTML;\n\n    // Count match-like elements after click\n    const afterMatchCount = await page.evaluate(() => {\n      const patterns = ['vs', 'v ', 'مقابل', 'ضد', 'match', 'live'];\n      const elements = document.querySelectorAll('a[href]');\n      let count = 0;\n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        if (patterns.some(p => text.includes(p) || href.includes(p))) {\n          count++;\n        }\n      });\n      return count;\n    });\n\n    // Extract visible text snippet (for context)\n    const newContentSnippet = await page.evaluate(() => {\n      const body = document.body;\n      if (!body) return '';\n      \n      // Remove scripts, styles\n      const clone = body.cloneNode(true);\n      clone.querySelectorAll('script, style, svg, noscript').forEach(el => el.remove());\n      \n      return clone.innerText\n        .replace(/\\s+/g, ' ')\n        .trim()\n        .slice(0, 2000);\n    });\n\n    // Check if new interactive elements appeared\n    const newInteractiveElements = await page.evaluate(() => {\n      const buttons = document.querySelectorAll('button, a, [role=\"button\"], .load-more, .show-more');\n      return Array.from(buttons).slice(0, 5).map(el => ({\n        tag: el.tagName.toLowerCase(),\n        text: (el.textContent || '').trim().slice(0, 40),\n        class: el.className,\n        visible: el.offsetWidth > 0 && el.offsetHeight > 0\n      }));\n    });\n\n    return JSON.stringify({\n      status: \"success\",\n      selector_clicked: selector,\n      navigated,\n      dom_changed: domChanged,\n      previous_url: beforeUrl,\n      current_url: afterUrl,\n      match_elements_before: beforeMatchCount,\n      match_elements_after: afterMatchCount,\n      new_matches_appeared: afterMatchCount > beforeMatchCount,\n      new_match_count: Math.max(0, afterMatchCount - beforeMatchCount),\n      content_snippet: newContentSnippet,\n      new_interactive_elements: newInteractiveElements\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      selector_tried: selector\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await smartClick();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The current page URL\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"CSS selector or text-based selector (e.g., 'text=Load More', '.load-more', '#show-more')\"\n    },\n    \"expect_navigation\": {\n      \"type\": \"boolean\",\n      \"description\": \"Set to true if clicking should navigate to a new page, false for UI state changes\",\n      \"default\": false\n    }\n  },\n  \"required\": [\"url\", \"selector\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        544,
+        832
+      ],
+      "id": "1c00175c-0180-4cbb-bcd8-27a7109e78de",
+      "name": "Clicking Tool"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "hq6I5xko5pWw8S32",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/hq6I5xko5pWw8S32",
+          "cachedResultName": "Classification Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "page_has_header": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_has_header', ``, 'boolean') }}",
+            "page_has_footer": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_has_footer', ``, 'boolean') }}",
+            "page_has_navbar": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_has_navbar', ``, 'boolean') }}",
+            "mainUrl": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('mainUrl', ``, 'string') }}",
+            "page_links": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_links', ``, 'json') }}",
+            "page_text_content": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_text_content', ``, 'string') }}",
+            "page_network": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('page_network', ``, 'json') }}",
+            "players_found": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('players_found', ``, 'json') }}",
+            "iframe": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('iframe', ``, 'string') }}",
+            "iframe_html": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('iframe_html', ``, 'string') }}",
+            "suspicious_patterns": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('suspicious_patterns', ``, 'json') }}",
+            "meta_description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('meta_description', ``, 'string') }}",
+            "keywords": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('keywords', ``, 'json') }}",
+            "screenshot_url": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('screenshot_url', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "mainUrl",
+              "displayName": "mainUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_links",
+              "displayName": "page_links",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "page_text_content",
+              "displayName": "page_text_content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "page_has_header",
+              "displayName": "page_has_header",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_footer",
+              "displayName": "page_has_footer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_has_navbar",
+              "displayName": "page_has_navbar",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "page_network",
+              "displayName": "page_network",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "players_found",
+              "displayName": "players_found",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "iframe",
+              "displayName": "iframe",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "iframe_html",
+              "displayName": "iframe_html",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "suspicious_patterns",
+              "displayName": "suspicious_patterns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "meta_description",
+              "displayName": "meta_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array",
+              "removed": false
+            },
+            {
+              "id": "screenshot_url",
+              "displayName": "screenshot_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        832
+      ],
+      "id": "b377b7a6-c053-43dd-9b03-5ef3f005386c",
+      "name": "Call 'Classification Agent'"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Other Page Agent natural language output\nconst input = $input.first().json;\nconst responseText = input.output || input.text || '';\n\n// Regex to find the CATEGORY_DECISION JSON block\nconst jsonMatch = responseText.match(/CATEGORY_DECISION:\\s*```json\\s*([\\s\\S]*?)\\s*```/i);\n\nlet parsedData = {\n  verified_as_other: true,\n  other_category: 'unknown',\n  action: 'discard', // Default safety action\n  reclassify_as: null,\n  confidence: 'low',\n  reasoning: 'Failed to parse agent output'\n};\n\nif (jsonMatch) {\n  try {\n    const jsonStr = jsonMatch[1].trim();\n    parsedData = JSON.parse(jsonStr);\n  } catch (e) {\n    try {\n      const genericJsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n      if (genericJsonMatch) {\n        parsedData = JSON.parse(genericJsonMatch[0]);\n      }\n    } catch (e2) {\n      console.log(\"JSON Parse Error\", e);\n    }\n  }\n}\n\n// Normalize action for switch node compatibility\nconst action = parsedData.action ? parsedData.action.toLowerCase() : 'discard';\n\nreturn {\n  json: {\n    page_url: input.mainUrl,\n    page_type: 'other',\n    verified_category: parsedData.other_category,\n    action: action,\n    reclassify_target: parsedData.reclassify_as,\n    reasoning: parsedData.reasoning,\n    contains_streaming_value: parsedData.contains_streaming_value || false\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        608
+      ],
+      "id": "2b5a1371-bc37-4e0e-80eb-cebdada23759",
+      "name": "Other Page Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function getHtmlSkeleton() {\n  const url = $fromAI(\"url\");\n  const focusTag = $fromAI(\"focus_tag\") || null;\n  const searchText = $fromAI(\"search_text\") || null;\n  const interactiveOnly = $fromAI(\"interactive_only\") !== false; // Default true\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n    \n    // Block images and fonts for speed\n    await page.setRequestInterception(true);\n    page.on('request', (req) => {\n      if (['image', 'font', 'stylesheet'].includes(req.resourceType())) {\n        req.abort();\n      } else {\n        req.continue();\n      }\n    });\n\n    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });\n\n    const skeleton = await page.evaluate((focusTag, searchText, interactiveOnly) => {\n      function cleanAttributes(attrs) {\n        const keep = ['id', 'class', 'href', 'role', 'type', 'aria-label', 'onclick', 'data-toggle'];\n        return Array.from(attrs)\n          .filter(attr => keep.includes(attr.name))\n          .map(attr => `${attr.name}=\"${attr.value}\"`)\n          .join(' ');\n      }\n\n      function isInteractive(node) {\n        const tagName = node.tagName.toLowerCase();\n        const interactiveTags = ['button', 'a', 'input', 'select', 'textarea'];\n        const hasClickHandler = node.onclick || node.getAttribute('onclick');\n        const hasRole = node.getAttribute('role') === 'button' || node.getAttribute('role') === 'tab';\n        const hasCursor = window.getComputedStyle(node).cursor === 'pointer';\n        \n        return interactiveTags.includes(tagName) || hasClickHandler || hasRole || hasCursor;\n      }\n\n      function shouldInclude(node, depth) {\n        if (depth > 8) return false;\n        if (node.nodeType !== 1) return false;\n        \n        const tagName = node.tagName.toLowerCase();\n        const ignore = ['script', 'style', 'svg', 'path', 'meta', 'link', 'noscript', 'iframe'];\n        if (ignore.includes(tagName)) return false;\n\n        // If focusing on specific tag\n        if (focusTag && tagName !== focusTag.toLowerCase()) {\n          const hasMatchingChild = node.querySelector(focusTag.toLowerCase());\n          if (!hasMatchingChild) return false;\n        }\n\n        // If searching for specific text\n        if (searchText) {\n          const text = node.textContent || '';\n          const hasText = text.toLowerCase().includes(searchText.toLowerCase());\n          if (!hasText) {\n            const hasMatchingChild = Array.from(node.children).some(child => \n              (child.textContent || '').toLowerCase().includes(searchText.toLowerCase())\n            );\n            if (!hasMatchingChild) return false;\n          }\n        }\n\n        // If interactive only mode\n        if (interactiveOnly) {\n          const isInteractiveNode = isInteractive(node);\n          const hasInteractiveChild = Array.from(node.children).some(child => isInteractive(child));\n          if (!isInteractiveNode && !hasInteractiveChild) return false;\n        }\n\n        return true;\n      }\n\n      function traverse(node, depth = 0) {\n        if (!shouldInclude(node, depth)) return '';\n        \n        const tagName = node.tagName.toLowerCase();\n        const attrs = cleanAttributes(node.attributes);\n        const text = node.childNodes.length === 1 && node.childNodes[0].nodeType === 3 \n          ? node.childNodes[0].textContent.trim().slice(0, 50) \n          : '';\n\n        // If leaf node with text\n        if (text && node.children.length === 0) {\n          return `\\n${'  '.repeat(depth)}<${tagName} ${attrs}>${text}</${tagName}>`;\n        }\n\n        // Build children\n        let childrenHtml = '';\n        for (const child of node.children) {\n          childrenHtml += traverse(child, depth + 1);\n        }\n\n        // Only output if has attributes or children\n        if (attrs || childrenHtml.trim().length > 0) {\n          return `\\n${'  '.repeat(depth)}<${tagName} ${attrs}>${childrenHtml}\\n${'  '.repeat(depth)}</${tagName}>`;\n        }\n\n        return childrenHtml;\n      }\n\n      return traverse(document.body, 0);\n    }, focusTag, searchText, interactiveOnly);\n\n    // Extract interactive elements summary\n    const interactiveSummary = await page.evaluate(() => {\n      const interactive = [];\n      const elements = document.querySelectorAll('button, a, [role=\"button\"], [onclick], .load-more, .show-more, .tab, [data-toggle]');\n      \n      elements.forEach((el, idx) => {\n        if (el.offsetWidth > 0 && el.offsetHeight > 0) { // Visible only\n          interactive.push({\n            index: idx,\n            tag: el.tagName.toLowerCase(),\n            text: (el.textContent || '').trim().slice(0, 60),\n            id: el.id || null,\n            class: el.className || null,\n            selector: el.id ? `#${el.id}` : (el.className ? `.${el.className.split(' ')[0]}` : el.tagName.toLowerCase())\n          });\n        }\n      });\n      \n      return interactive.slice(0, 15); // Limit to first 15\n    });\n\n    return JSON.stringify({\n      status: \"success\",\n      skeleton_html: skeleton.slice(0, 10000), // Token limit\n      interactive_elements: interactiveSummary,\n      element_count: interactiveSummary.length,\n      message: interactiveSummary.length === 0 ? \"No interactive elements found\" : `Found ${interactiveSummary.length} interactive elements`\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await getHtmlSkeleton();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL to analyze\"\n    },\n    \"focus_tag\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Focus only on specific tags (e.g., 'button', 'a', 'div')\"\n    },\n    \"search_text\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Only return elements containing this text (e.g., 'Load More', 'عرض المزيد', 'Live')\"\n    },\n    \"interactive_only\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, only return clickable/interactive elements (default: true)\",\n      \"default\": true\n    }\n  },\n  \"required\": [\"url\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        832
+      ],
+      "id": "ac2242a0-3017-4523-a174-e9bbb43812a6",
+      "name": "Skeleton HTML Tool"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "glm-4.5-air4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Other Page Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Other Page Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Other Page Agent": {
+      "main": [
+        [
+          {
+            "node": "Other Page Output Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Think": {
+      "ai_tool": [
+        [
+          {
+            "node": "Other Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Screenshot Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Other Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clicking Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Other Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Classification Agent'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Other Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skeleton HTML Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Other Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "625e1022-f3fc-4605-bd3d-513e9432f14a",
+  "meta": {
+    "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"
+  },
+  "id": "QWOrzWWj0SD4yJfg",
+  "tags": []
+}
