@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "The URL of the website to screenshot"
+    },
+    "selector": {
+      "type": "string",
+      "description": "Optional CSS selector to screenshot a specific element (e.g., '.header', '#main-content')"
+    },
+    "fullPage": {
+      "type": "boolean",
+      "description": "Capture full scrollable page instead of viewport"
+    }
+  },
+  "required": ["url"]
+}

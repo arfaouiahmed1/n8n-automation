@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "The current page URL"
+    },
+    "selector": {
+      "type": "string",
+      "description": "CSS selector or text-based selector (e.g., 'text=Load More', '.load-more', '#show-more')"
+    },
+    "expect_navigation": {
+      "type": "boolean",
+      "description": "Set to true if clicking should navigate to a new page, false for UI state changes",
+      "default": false
+    }
+  },
+  "required": ["url", "selector"]
+}

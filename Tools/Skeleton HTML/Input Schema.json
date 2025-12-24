@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "The URL to analyze for interactive elements",
+      "examples": ["https://example.com/schedule", "https://streaming-site.com/live"]
+    },
+    "focus_tag": {
+      "type": "string",
+      "description": "Optional: Focus only on specific HTML tags. Useful for narrowing search.",
+      "enum": ["button", "a", "div", "span", "input"],
+      "examples": ["button", "a"]
+    },
+    "search_text": {
+      "type": "string",
+      "description": "Optional: Only return elements containing this text (case-insensitive). Great for finding specific UI elements like 'Load More', 'Show All', 'Today', 'Live', 'عرض المزيد', etc.",
+      "examples": ["Load More", "Show All", "Today", "Live", "عرض المزيد", "اليوم"]
+    },
+    "interactive_only": {
+      "type": "boolean",
+      "description": "If true, only return clickable/interactive elements (buttons, links, tabs, toggles). If false, return all elements matching other criteria.",
+      "default": true
+    },
+    "include_context": {
+      "type": "boolean",
+      "description": "If true, include parent and sibling context for each element. Helps LLM understand page structure and make better selector choices.",
+      "default": true
+    }
+  },
+  "required": ["url"],
+  "examples": [
+    {
+      "url": "https://example.com/schedule",
+      "search_text": "Load More",
+      "interactive_only": true
+    },
+    {
+      "url": "https://streaming-site.com/live",
+      "focus_tag": "button",
+      "interactive_only": true
+    },
+    {
+      "url": "https://sports-site.com",
+      "search_text": "Today",
+      "include_context": true
+    }
+  ]
+}

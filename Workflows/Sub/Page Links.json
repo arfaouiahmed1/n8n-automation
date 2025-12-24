@@ -1,0 +1,156 @@
+{
+  "name": "Page Links",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "  \n{\n  \n  \n\"URL\": \n\"https://www.syria-live.tv/yalla-koora/\",\n  \n  \n\"id\": \n1,\n  \n  \n\"createdAt\": \n\"2025-12-04T18:15:52.323Z\",\n  \n  \n\"updatedAt\": \n\"2025-12-10T12:35:31.906Z\"\n  \n}\n"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -752,
+        96
+      ],
+      "id": "65e657a3-2056-4f86-b829-6afbd47b231f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "OMNWvcX4lRKityBq",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/OMNWvcX4lRKityBq",
+          "cachedResultName": "Data Pulling And Cleaning"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "URL": "={{ $json.URL }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": true
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -528,
+        96
+      ],
+      "id": "506973ed-4d43-4486-8c52-af2e66cc3e1e",
+      "name": "Call 'Data Pulling And Cleaning'"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "page_links"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        96
+      ],
+      "id": "926ba697-0098-48f2-9735-a4530cb879e7",
+      "name": "Aggregate"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "URL": "https://freeshot.live/live-tv/arabia",
+          "id": null,
+          "createdAt": null,
+          "updatedAt": null
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call 'Data Pulling And Cleaning'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Data Pulling And Cleaning'": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "559e528c-c9ef-41d0-9f14-97ece3d128ad",
+  "meta": {
+    "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"
+  },
+  "id": "JkgOJT3DUGLlEokW",
+  "tags": []
+}

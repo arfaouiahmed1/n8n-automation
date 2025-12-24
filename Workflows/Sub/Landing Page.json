@@ -1,0 +1,568 @@
+{
+  "name": "Landing Page",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=# STREAMING CONTENT EXTRACTOR\n\nYou are an expert at extracting live streaming content URLs from schedule/fixtures/listings pages across various streaming websites.\n\n## YOUR SCOPE\n\n**You ARE responsible for:**\n- Identifying streaming content page URLs on the landing page\n- Extracting available metadata (title, participants, time, category, broadcaster, status)\n- Intelligently navigating the landing page when content appears hidden\n- Refreshing page data after navigation\n- Maximizing content extraction within reasonable effort\n\n**You are NOT responsible for:**\n- Navigating into individual content pages\n- Navigating to actual stream/player pages\n- Deep crawling beyond the landing page\n\n---\n\n## INPUT DATA\n\n**Page URL:** {{ $json.mainUrl }}\n\n**Page Links:** {{ JSON.stringify($json.page_links, null, 2) }}\n\n**Screenshot Available:** {{ $json.screenshot_url ? 'Yes - ' + $json.screenshot_url : 'No' }}\n\n---\n\n## CORE OBJECTIVE\n\nExtract streaming content URLs with metadata:\n- `url` (required)\n- `title` (when available)\n- `participants` (teams/performers/etc., when applicable)\n- `time` (when available)\n- `category` (sports/esports/entertainment/events/etc.)\n- `broadcaster` (when available)\n- `status` (when available)\n- `confidence` (high/medium/low)\n\n---\n\n## EXECUTION APPROACH\n\n### Phase 1: Initial Analysis & Extraction\n\n1. **Analyze available data sources in order:**\n   - If screenshot is provided → analyze it first for visual context\n   - Review `page_links` for content URLs\n   - Identify patterns and structure of the page\n   - Determine content type (sports, esports, TV shows, live events, etc.)\n\n2. **Extract visible content:**\n   - Apply validation rules (see below)\n   - Deduplicate results\n   - Extract all available metadata\n   - Adapt extraction based on content category detected\n\n3. **Assess completeness:**\n   - Does the page appear to show all available content?\n   - Are there UI elements suggesting hidden content (tabs, filters, pagination, \"load more\")?\n   - Is the content count reasonable for this type of page?\n\n### Phase 2: Strategic Navigation (If Needed)\n\n**Only proceed if:** Clear indicators suggest more content exists but is hidden.\n\n**Navigation strategy:**\n1. Use Skeleton HTML Tool to identify interactive elements:\n   - Tabs or category filters (Sports, Esports, Movies, TV, Events, etc.)\n   - Date/time selectors\n   - \"Load more\" / \"Show all\" / \"View all\" buttons\n   - Pagination controls\n   - Sport/game/genre filters\n\n2. Prioritize clicks by likelihood of revealing content:\n   - Tabs labeled with categories, dates, or \"all\"\n   - Buttons that expand or load additional content\n   - Filters that might hide content by default\n   - Date selectors showing current/upcoming content\n\n3. After each interaction:\n   - If page navigated → Call workflow tool to refresh `page_links`\n   - Extract new content from updated data\n   - Reassess if further navigation is worthwhile\n\n**Navigation limits:**\n- Maximum 5 click interactions\n- Stop if consecutive interactions yield no new content\n- Avoid clicking actual content links or external navigation\n\n### Phase 3: Final Compilation\n\n- Deduplicate all content across navigation steps\n- Calculate confidence scores based on metadata completeness\n- Document extraction method and challenges\n\n---\n\n## CONTENT URL VALIDATION\n\n**A URL is likely streaming content if 2+ criteria are met:**\n\n**URL patterns:**\n- Contains keywords: `match`, `game`, `live`, `stream`, `watch`, `vs`, `v`, `event`, `show`, `episode`, `fight`, `race`\n- Contains team names, player names, show titles, or event names\n- Contains date/time patterns or episode numbers\n- Follows site-specific content URL structure\n- Contains category indicators: `sport`, `esport`, `tv`, `movie`, `ufc`, `boxing`, `nba`, `nfl`, etc.\n\n**Link text patterns:**\n- Shows matchup format: `vs`, `v`, `-`, `×`, `@`, `مقابل`, `ضد`, `contra`\n- Shows content titles (team names, show names, event names)\n- Shows time/date information\n- Shows episode/season information\n- Shows category labels (Premier League, UFC 300, LCS, etc.)\n\n**Context clues:**\n- Appears within content listing/schedule structure\n- Nearby text includes category names, broadcast info, or status\n- Similar URLs appear in a pattern (suggests consistent content URL structure)\n- Contains timing information (live now, starts at X, etc.)\n- Shows participant information (teams, fighters, players, hosts, etc.)\n\n**Exclude if:**\n- URL is `#`, `/`, or homepage\n- Links to login/register/subscription pages\n- Links to standalone TV channel pages (without specific content context)\n- Links to news articles or blog posts\n- Links to betting/advertising sites\n- Links to general category pages without specific content\n\n---\n\n## CONTENT CATEGORIZATION\n\nWhen extracting, attempt to identify the content category:\n\n**Sports:** Football, Basketball, Baseball, Hockey, Soccer, Tennis, Cricket, Racing, etc.\n**Esports:** League of Legends, CS:GO, Dota 2, Valorant, Fighting Games, etc.\n**Combat Sports:** Boxing, MMA/UFC, Wrestling, etc.\n**Entertainment:** TV Shows, Movies, Reality TV, Talk Shows, etc.\n**Live Events:** Concerts, Conferences, Awards Shows, etc.\n**General:** When category cannot be determined\n\nUse context from URLs, link text, and page structure to infer categories.\n\n---\n\n## STOPPING CRITERIA\n\n**Stop extraction when ANY of the following is true:**\n\n1. **Natural completion:** All visible and accessible content has been extracted\n2. **Navigation exhausted:** No more interactive elements to reveal additional content\n3. **Diminishing returns:** Multiple consecutive actions yield no new content\n4. **Effort limit:** 5 navigation clicks have been performed\n5. **Confidence reached:** Extracted content appears to represent the full schedule based on page structure\n\n**Do NOT stop prematurely just because:**\n- Initial extraction yields few items\n- First click doesn't reveal content (try alternative elements)\n- Screenshot doesn't show all content (may be below fold or in different tabs)\n- Content is from mixed categories (sports + esports + TV, etc.)\n\n---\n\n## TOOL USAGE GUIDELINES\n\n**Screenshot Tool:**\n- Only call if `Screenshot Available = No`\n- Never request a new screenshot if one is already provided\n- Use for visual confirmation of page structure and hidden elements\n\n**Skeleton HTML Tool:**\n- Use to identify clickable UI elements when navigation is needed\n- Call before attempting clicks to get reliable selectors\n\n**Click Tool:**\n- Use judiciously to reveal hidden content\n- Target one specific element per call\n- Never click on content URLs themselves\n\n**Workflow Tool (Page Links):**\n- MUST be called after any successful navigation\n- Provides refreshed `page_links` data\n- Required before extracting from navigated page\n\n---\n\n## OUTPUT FORMAT\n\n```json\n{\n  \"analysis_summary\": {\n    \"total_content_found\": <number>,\n    \"content_categories_detected\": [\"<categories>\"],\n    \"extraction_confidence\": \"high|medium|low\",\n    \"page_structure\": \"<brief description>\",\n    \"challenges_encountered\": [\"<list any issues>\"]\n  },\n  \"extraction_strategy\": {\n    \"method\": \"direct_extraction|navigation_required|multi_step_navigation\",\n    \"tools_used\": [\"<list tools>\"],\n    \"navigation_steps\": [\n      {\n        \"action\": \"<what was clicked>\",\n        \"result\": \"<content found / page change>\"\n      }\n    ]\n  },\n  \"content\": [\n    {\n      \"url\": \"<content page URL>\",\n      \"title\": \"<descriptive title>\",\n      \"participants\": \"<team1 vs team2 | fighter1 vs fighter2 | show name | etc>\",\n      \"time\": \"<content time>\",\n      \"category\": \"<sport type | esport | entertainment | event type>\",\n      \"broadcaster\": \"<channel/platform>\",\n      \"status\": \"<live|upcoming|scheduled|finished>\",\n      \"confidence\": \"high|medium|low\",\n      \"extraction_source\": \"page_links|screenshot|post_navigation\"\n    }\n  ],\n  \"metadata\": {\n    \"requires_further_extraction\": false,\n    \"completion_reason\": \"<why extraction stopped>\",\n    \"recommendation\": \"<any suggestions for improvement>\"\n  }\n}\n```\n\n---\n\n## CRITICAL PRINCIPLES\n\n1. **Be thorough but efficient:** Exhaust reasonable options before stopping\n2. **Use provided data first:** Don't request tools for data you already have\n3. **Think adaptively:** Each site has different structures and content types - adjust your approach\n4. **Validate aggressively:** Only include URLs with high confidence of being streamable content\n5. **Document your reasoning:** Explain what you tried and why you stopped\n6. **Never hallucinate:** If data isn't available, mark it as null/unknown\n7. **Deduplicate consistently:** Same content from different navigation steps should appear once\n8. **Be category-agnostic:** Don't assume football/soccer - detect actual content type from context\n\n---\n\n## CRITICAL:  CONTENT AGGREGATION\n\n**You MUST return ALL extracted content URLs in the final `content` array.**\n\n- Do NOT only return content from the last navigation step\n- AGGREGATE content from ALL pages/tabs/clicks\n- The `total_content_found` MUST equal the length of the `content` array\n- If you found 21 URLs, you MUST list all 21 in the output\n\n## CONFIDENCE SCORING\n\n**High confidence:**\n- URL structure clearly indicates content page\n- Multiple metadata fields extracted\n- Consistent with other content on page\n- Clear category identification\n\n**Medium confidence:**\n- URL likely content but some ambiguity\n- Limited metadata available\n- Pattern matches but not perfectly\n- Category unclear\n\n**Low confidence:**\n- Uncertain if URL is actually streamable content\n- Very limited information\n- Requires validation by downstream processor\n- Mixed signals from URL and context",
+        "needsFallback": true,
+        "options": {
+          "maxIterations": 50,
+          "returnIntermediateSteps": false,
+          "enableStreaming": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -184,
+        304
+      ],
+      "id": "633dd4b3-7dc6-4b09-b71f-03b3ecd21cf0",
+      "name": "Landing Page Agent",
+      "retryOnFail": false,
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Name: screenshot_tool_cloudinary\nconst puppeteer = require('puppeteer');\nconst https = require('https');\n\n/**\n * Upload image buffer to Cloudinary\n */\nasync function uploadToCloudinary(imageBuffer) {\n  const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || \"dktc34wxa\";\n  const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || \"n8n-Ahmed\";\n\n  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {\n    throw new Error(\n      `Cloudinary credentials missing: CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}, PRESET=${CLOUDINARY_UPLOAD_PRESET}`\n    );\n  }\n\n  const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;\n\n  const formData = {\n    file: base64Image,\n    upload_preset: CLOUDINARY_UPLOAD_PRESET,\n  };\n\n  const boundary = \"----n8nCloudinaryBoundary\" + Math.random().toString(16).slice(2);\n  let body = \"\";\n\n  for (const [key, value] of Object.entries(formData)) {\n    body += `--${boundary}\\r\\n`;\n    body += `Content-Disposition: form-data; name=\"${key}\"\\r\\n\\r\\n`;\n    body += `${value}\\r\\n`;\n  }\n  body += `--${boundary}--\\r\\n`;\n\n  return new Promise((resolve, reject) => {\n    const req = https.request(\n      {\n        hostname: \"api.cloudinary.com\",\n        port: 443,\n        path: `/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,\n        method: \"POST\",\n        headers: {\n          \"Content-Type\": `multipart/form-data; boundary=${boundary}`,\n          \"Content-Length\": Buffer.byteLength(body),\n        },\n      },\n      (res) => {\n        let data = \"\";\n        res.on(\"data\", (chunk) => (data += chunk));\n        res.on(\"end\", () => {\n          if (res.statusCode === 200) {\n            resolve(JSON.parse(data).secure_url);\n          } else {\n            reject(new Error(`Cloudinary upload failed: ${data}`));\n          }\n        });\n      }\n    );\n\n    req.on(\"error\", reject);\n    req.write(body);\n    req.end();\n  });\n}\n\n/**\n * Main Screenshot Function\n */\nasync function takeScreenshot() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const fullPageInput = $fromAI(\"fullPage\");\n  const fullPage = fullPageInput === true || fullPageInput === \"true\";\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\",\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: [\n      \"--no-sandbox\",\n      \"--disable-setuid-sandbox\",\n      \"--disable-dev-shm-usage\",\n    ],\n  });\n\n  try {\n    const page = await browser.newPage();\n\n    await page.setViewport({ width: 1280, height: 800 });\n    await page.setUserAgent(\n      \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36\"\n    );\n\n    await page.goto(url, {\n      waitUntil: \"domcontentloaded\",\n      timeout: 30000,\n    });\n\n    await page.waitForTimeout(2000);\n\n    let buffer;\n    let type = \"viewport\";\n\n    if (selector) {\n      try {\n        await page.waitForSelector(selector, { timeout: 5000 });\n        const element = await page.$(selector);\n\n        if (!element) {\n          return JSON.stringify({\n            status: \"error\",\n            message: `Selector found but element is null: '${selector}'`,\n          });\n        }\n\n        buffer = await element.screenshot();\n        type = `element (${selector})`;\n      } catch (err) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not screenshot element '${selector}'. ${err.message}`,\n        });\n      }\n    } else {\n      buffer = await page.screenshot({ fullPage });\n      type = fullPage ? \"full_page\" : \"viewport\";\n    }\n\n    const imageUrl = await uploadToCloudinary(buffer);\n\n    return JSON.stringify({\n      status: \"success\",\n      type,\n      image_url: imageUrl,\n      message: \"Screenshot uploaded successfully\",\n    });\n  } catch (err) {\n    return JSON.stringify({\n      status: \"error\",\n      message: err.message,\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await takeScreenshot();\n",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL of the website to screenshot\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"Optional CSS selector to screenshot a specific element (e.g., '.header', '#main-content')\"\n    },\n    \"fullPage\": {\n      \"type\": \"boolean\",\n      \"description\": \"Capture full scrollable page instead of viewport\"\n    }\n  },\n  \"required\": [\"url\"]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -176,
+        528
+      ],
+      "id": "e1276c79-8050-4ccd-a52e-97749e352067",
+      "name": "Screenshot Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function smartClick() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const expectNavigation = $fromAI(\"expect_navigation\") === true;\n\n  if (!url || !selector) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL and selector are required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n\n    // Navigate to page\n    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });\n    await page.waitForTimeout(2000); // Wait for dynamic content\n    \n    const beforeUrl = page.url();\n\n    // Get snapshot of content URLs before click\n    const beforeLinks = await page.evaluate(() => {\n      const links = Array.from(document.querySelectorAll('a[href]'));\n      return links\n        .map(a => a.href)\n        .filter(href => href && !href.startsWith('javascript:') && href !== '#');\n    });\n\n    // Count content indicators before click\n    const beforeContentCount = await page.evaluate(() => {\n      const contentPatterns = [\n        'vs', 'v ', 'مقابل', 'ضد', 'match', 'live', 'stream',\n        'game', 'watch', 'event', 'show', 'fight', 'race'\n      ];\n      const elements = document.querySelectorAll('a[href], div[class*=\"match\"], div[class*=\"game\"], div[class*=\"event\"]');\n      let count = 0;\n      \n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        const className = (el.className || '').toLowerCase();\n        \n        if (contentPatterns.some(p => \n          text.includes(p) || href.includes(p) || className.includes(p)\n        )) {\n          count++;\n        }\n      });\n      \n      return count;\n    });\n\n    // ENHANCED CLICK LOGIC\n    let clickSuccess = false;\n    let clickMethod = '';\n    let errorLog = [];\n    let elementInfo = null;\n\n    // METHOD 1: Text-based selector\n    if (selector.startsWith('text=')) {\n      const text = selector.slice(5).trim();\n      \n      try {\n        // Case-insensitive contains with normalize\n        const xpath = `//*[contains(translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${text.toLowerCase()}')]`;\n        const elements = await page.$x(xpath);\n        \n        if (elements.length > 0) {\n          // Find the most clickable element\n          for (let element of elements) {\n            const info = await element.evaluate(el => {\n              const rect = el.getBoundingClientRect();\n              const style = window.getComputedStyle(el);\n              return {\n                visible: rect.width > 0 && rect.height > 0,\n                display: style.display !== 'none',\n                visibility: style.visibility !== 'hidden',\n                opacity: parseFloat(style.opacity) > 0,\n                tag: el.tagName.toLowerCase(),\n                text: el.textContent.trim().slice(0, 100),\n                clickable: ['a', 'button'].includes(el.tagName.toLowerCase()) || \n                          el.onclick !== null || \n                          el.getAttribute('role') === 'button'\n              };\n            });\n            \n            if (info.visible && info.display && info.visibility && info.opacity > 0) {\n              try {\n                await element.click();\n                clickSuccess = true;\n                clickMethod = 'text_xpath';\n                elementInfo = info;\n                break;\n              } catch (e) {\n                errorLog.push(`Element found but click failed: ${e.message}`);\n              }\n            }\n          }\n        } else {\n          errorLog.push(`No elements found matching text: \"${text}\"`);\n        }\n      } catch (e) {\n        errorLog.push(`XPath text search failed: ${e.message}`);\n      }\n    }\n    \n    // METHOD 2: CSS Selector with enhanced validation\n    else {\n      // Try to find and validate element first\n      try {\n        const elementExists = await page.evaluate((sel) => {\n          try {\n            const el = document.querySelector(sel);\n            if (!el) return { found: false };\n            \n            const rect = el.getBoundingClientRect();\n            const style = window.getComputedStyle(el);\n            \n            return {\n              found: true,\n              visible: rect.width > 0 && rect.height > 0,\n              display: style.display !== 'none',\n              visibility: style.visibility !== 'hidden',\n              opacity: parseFloat(style.opacity),\n              tag: el.tagName.toLowerCase(),\n              text: el.textContent.trim().slice(0, 100),\n              isInteractive: ['a', 'button', 'input'].includes(el.tagName.toLowerCase()) ||\n                            el.onclick !== null ||\n                            el.hasAttribute('onclick') ||\n                            el.getAttribute('role') === 'button' ||\n                            style.cursor === 'pointer'\n            };\n          } catch (e) {\n            return { found: false, error: e.message };\n          }\n        }, selector);\n\n        if (!elementExists.found) {\n          errorLog.push(`Element not found: ${selector}`);\n        } else if (!elementExists.visible) {\n          errorLog.push(`Element found but not visible: ${JSON.stringify(elementExists)}`);\n        } else {\n          elementInfo = elementExists;\n          \n          // Try direct click\n          try {\n            await page.waitForSelector(selector, { visible: true, timeout: 2000 });\n            await page.click(selector);\n            clickSuccess = true;\n            clickMethod = 'css_direct';\n          } catch (e1) {\n            errorLog.push(`Direct click failed: ${e1.message}`);\n            \n            // Try scrolling into view then click\n            try {\n              await page.evaluate((sel) => {\n                const el = document.querySelector(sel);\n                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });\n              }, selector);\n              await page.waitForTimeout(500);\n              await page.click(selector);\n              clickSuccess = true;\n              clickMethod = 'css_scroll_click';\n            } catch (e2) {\n              errorLog.push(`Scroll + click failed: ${e2.message}`);\n              \n              // Try JavaScript click as last resort\n              try {\n                const jsClicked = await page.evaluate((sel) => {\n                  const el = document.querySelector(sel);\n                  if (el) {\n                    el.click();\n                    return true;\n                  }\n                  return false;\n                }, selector);\n                \n                if (jsClicked) {\n                  clickSuccess = true;\n                  clickMethod = 'js_click';\n                } else {\n                  errorLog.push('JS click: element not found');\n                }\n              } catch (e3) {\n                errorLog.push(`JS click failed: ${e3.message}`);\n              }\n            }\n          }\n        }\n      } catch (e) {\n        errorLog.push(`Element validation failed: ${e.message}`);\n      }\n    }\n\n    // If click failed, provide better alternatives\n    if (!clickSuccess) {\n      const suggestions = await page.evaluate((failedSelector) => {\n        const keywords = [\n          'load', 'more', 'show', 'all', 'view', 'expand',\n          'عرض', 'المزيد', 'الكل', 'اليوم', 'مباشر',\n          'today', 'live', 'upcoming', 'schedule'\n        ];\n        \n        const elements = Array.from(document.querySelectorAll(\n          'button, a, div[role=\"button\"], span[onclick], [class*=\"btn\"], [class*=\"toggle\"], [class*=\"tab\"], [class*=\"nav\"]'\n        ));\n        \n        const matches = [];\n        \n        elements.forEach((el, idx) => {\n          const text = (el.textContent || '').toLowerCase().trim();\n          const rect = el.getBoundingClientRect();\n          const style = window.getComputedStyle(el);\n          const isVisible = rect.width > 0 && rect.height > 0 && \n                          style.display !== 'none' && \n                          style.visibility !== 'hidden';\n          \n          if (isVisible && keywords.some(kw => text.includes(kw))) {\n            const classes = el.className ? el.className.split(' ').filter(c => c) : [];\n            \n            matches.push({\n              tag: el.tagName.toLowerCase(),\n              text: el.textContent.trim().slice(0, 60),\n              id: el.id,\n              classes: classes.slice(0, 3),\n              suggested_selector: el.id ? `#${el.id}` : \n                                classes.length > 0 ? `.${classes[0]}` :\n                                `${el.tagName.toLowerCase()}:nth-of-type(${idx + 1})`,\n              text_selector: `text=${text.slice(0, 30)}`\n            });\n          }\n        });\n        \n        return matches.slice(0, 5);\n      }, selector);\n\n      return JSON.stringify({\n        status: \"error\",\n        message: `Failed to click selector after ${errorLog.length} attempts`,\n        selector_tried: selector,\n        element_info: elementInfo,\n        attempts: errorLog,\n        suggestions: suggestions,\n        hint: suggestions.length > 0 ? \n              `Most likely: ${suggestions[0].suggested_selector} (${suggestions[0].text})` : \n              \"No interactive elements found - page may be loading or selector is incorrect\"\n      });\n    }\n\n    // Wait for changes based on expectation\n    if (expectNavigation) {\n      try {\n        await page.waitForNavigation({ timeout: 5000, waitUntil: 'networkidle0' });\n      } catch {\n        await page.waitForTimeout(3000);\n      }\n    } else {\n      await page.waitForTimeout(2000);\n    }\n\n    const afterUrl = page.url();\n    const navigated = beforeUrl !== afterUrl;\n\n    // Get snapshot of content URLs after click\n    const afterLinks = await page.evaluate(() => {\n      const links = Array.from(document.querySelectorAll('a[href]'));\n      return links\n        .map(a => a.href)\n        .filter(href => href && !href.startsWith('javascript:') && href !== '#');\n    });\n\n    // Calculate new unique links\n    const beforeSet = new Set(beforeLinks);\n    const newLinks = afterLinks.filter(link => !beforeSet.has(link));\n\n    // Count content indicators after click\n    const afterContentCount = await page.evaluate(() => {\n      const contentPatterns = [\n        'vs', 'v ', 'مقابل', 'ضد', 'match', 'live', 'stream',\n        'game', 'watch', 'event', 'show', 'fight', 'race'\n      ];\n      const elements = document.querySelectorAll('a[href], div[class*=\"match\"], div[class*=\"game\"], div[class*=\"event\"]');\n      let count = 0;\n      \n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        const className = (el.className || '').toLowerCase();\n        \n        if (contentPatterns.some(p => \n          text.includes(p) || href.includes(p) || className.includes(p)\n        )) {\n          count++;\n        }\n      });\n      \n      return count;\n    });\n\n    // Check if meaningful content appeared\n    const contentIncreased = afterContentCount > beforeContentCount;\n    const newLinksAppeared = newLinks.length > 0;\n    \n    // Extract sample of new visible content\n    const newContentSample = await page.evaluate(() => {\n      const contentPatterns = [\n        'vs', 'v ', 'مقابل', 'ضد', 'match', 'live', 'stream',\n        'game', 'watch', 'event', 'show', 'fight'\n      ];\n      \n      const links = Array.from(document.querySelectorAll('a[href]'));\n      const samples = [];\n      \n      links.forEach(link => {\n        const text = link.textContent.trim();\n        const href = link.href;\n        \n        if (text && contentPatterns.some(p => \n          text.toLowerCase().includes(p) || href.toLowerCase().includes(p)\n        )) {\n          samples.push({\n            text: text.slice(0, 80),\n            href: href\n          });\n        }\n      });\n      \n      return samples.slice(0, 10);\n    });\n\n    return JSON.stringify({\n      status: \"success\",\n      selector_clicked: selector,\n      click_method: clickMethod,\n      element_clicked: elementInfo,\n      navigated,\n      url_changed: navigated,\n      previous_url: beforeUrl,\n      current_url: afterUrl,\n      \n      // More accurate metrics\n      content_elements_before: beforeContentCount,\n      content_elements_after: afterContentCount,\n      content_increased: contentIncreased,\n      content_delta: afterContentCount - beforeContentCount,\n      \n      // Link tracking\n      total_links_before: beforeLinks.length,\n      total_links_after: afterLinks.length,\n      new_unique_links: newLinks.length,\n      new_links_sample: newLinks.slice(0, 5),\n      \n      // Content samples\n      visible_content_sample: newContentSample,\n      \n      // Decision helper\n      likely_successful: navigated || contentIncreased || newLinksAppeared,\n      recommendation: navigated ? \"Navigation occurred - refresh page data\" :\n                      contentIncreased ? \"New content appeared - extract from current page\" :\n                      newLinksAppeared ? \"New links appeared - may need extraction\" :\n                      \"No significant changes detected - try different selector\"\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      stack: error.stack,\n      selector_tried: selector\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await smartClick();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The current page URL\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"CSS selector or text-based selector (e.g., 'text=Load More', '.load-more', '#show-more')\"\n    },\n    \"expect_navigation\": {\n      \"type\": \"boolean\",\n      \"description\": \"Set to true if clicking should navigate to a new page, false for UI state changes\",\n      \"default\": false\n    }\n  },\n  \"required\": [\"url\", \"selector\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        528
+      ],
+      "id": "359163ba-8505-4889-9c31-6249ce087eb4",
+      "name": "Clicking Tool"
+    },
+    {
+      "parameters": {
+        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function getHtmlSkeleton() {\n  const url = $fromAI(\"url\");\n  const focusTag = $fromAI(\"focus_tag\") || null;\n  const searchText = $fromAI(\"search_text\") || null;\n  const interactiveOnly = $fromAI(\"interactive_only\") !== false; // Default true\n  const includeContext = $fromAI(\"include_context\") !== false; // Default true\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n    \n    // Block unnecessary resources for speed\n    await page.setRequestInterception(true);\n    page.on('request', (req) => {\n      if (['image', 'font'].includes(req.resourceType())) {\n        req.abort();\n      } else {\n        req.continue();\n      }\n    });\n\n    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });\n    await page.waitForTimeout(1500); // Wait for dynamic content\n\n    // Extract comprehensive interactive elements with context\n    const interactiveElements = await page.evaluate((searchText) => {\n      const elements = [];\n      \n      // Target interactive elements\n      const candidates = document.querySelectorAll(\n        'button, a, input[type=\"button\"], input[type=\"submit\"], ' +\n        '[role=\"button\"], [role=\"tab\"], [onclick], ' +\n        '[class*=\"btn\"], [class*=\"button\"], [class*=\"tab\"], [class*=\"toggle\"], ' +\n        '[class*=\"load\"], [class*=\"more\"], [class*=\"show\"], [class*=\"expand\"], ' +\n        '[data-toggle], [data-tab], [data-click]'\n      );\n      \n      candidates.forEach((el, idx) => {\n        const rect = el.getBoundingClientRect();\n        const style = window.getComputedStyle(el);\n        \n        // Check visibility\n        const isVisible = rect.width > 0 && \n                         rect.height > 0 && \n                         style.display !== 'none' && \n                         style.visibility !== 'hidden' &&\n                         parseFloat(style.opacity) > 0;\n        \n        if (!isVisible) return;\n        \n        const text = (el.textContent || '').trim();\n        const tag = el.tagName.toLowerCase();\n        \n        // Apply text filter if provided\n        if (searchText && !text.toLowerCase().includes(searchText.toLowerCase())) {\n          return;\n        }\n        \n        // Generate multiple selector options\n        const selectors = [];\n        \n        if (el.id) {\n          selectors.push({\n            type: 'id',\n            value: `#${el.id}`,\n            reliability: 'high'\n          });\n        }\n        \n        const classes = el.className ? el.className.split(' ').filter(c => c.trim()) : [];\n        if (classes.length > 0) {\n          // Primary class\n          selectors.push({\n            type: 'class',\n            value: `.${classes[0]}`,\n            reliability: 'medium'\n          });\n          \n          // Combined classes (more specific)\n          if (classes.length > 1) {\n            selectors.push({\n              type: 'class_combined',\n              value: `.${classes.slice(0, 3).join('.')}`,\n              reliability: 'high'\n            });\n          }\n        }\n        \n        // Tag + class\n        if (classes.length > 0) {\n          selectors.push({\n            type: 'tag_class',\n            value: `${tag}.${classes[0]}`,\n            reliability: 'high'\n          });\n        }\n        \n        // Text-based selector (most reliable for dynamic content)\n        if (text && text.length < 50) {\n          selectors.push({\n            type: 'text',\n            value: `text=${text.slice(0, 40)}`,\n            reliability: 'high'\n          });\n        }\n        \n        // Nth-of-type (fallback)\n        const siblings = Array.from(el.parentElement?.children || []).filter(\n          child => child.tagName === el.tagName\n        );\n        const position = siblings.indexOf(el) + 1;\n        if (position > 0) {\n          selectors.push({\n            type: 'nth_type',\n            value: `${tag}:nth-of-type(${position})`,\n            reliability: 'low'\n          });\n        }\n        \n        // Get parent context\n        let parentContext = '';\n        let parent = el.parentElement;\n        let depth = 0;\n        while (parent && depth < 2) {\n          const parentTag = parent.tagName.toLowerCase();\n          const parentClass = parent.className ? `.${parent.className.split(' ')[0]}` : '';\n          parentContext = `${parentTag}${parentClass} > ${parentContext}`;\n          parent = parent.parentElement;\n          depth++;\n        }\n        \n        // Get siblings context (nearby text/elements)\n        const siblingsText = [];\n        if (el.parentElement) {\n          Array.from(el.parentElement.children).forEach(sibling => {\n            if (sibling !== el) {\n              const sibText = (sibling.textContent || '').trim().slice(0, 30);\n              if (sibText) siblingsText.push(sibText);\n            }\n          });\n        }\n        \n        elements.push({\n          index: idx,\n          tag: tag,\n          text: text.slice(0, 100),\n          href: el.href || null,\n          \n          // Element properties\n          id: el.id || null,\n          classes: classes,\n          attributes: {\n            role: el.getAttribute('role'),\n            type: el.getAttribute('type'),\n            'data-toggle': el.getAttribute('data-toggle'),\n            'data-tab': el.getAttribute('data-tab'),\n            onclick: el.onclick ? 'present' : null,\n            'aria-label': el.getAttribute('aria-label')\n          },\n          \n          // Selector options ranked by reliability\n          selectors: selectors,\n          recommended_selector: selectors.length > 0 ? selectors[0].value : `${tag}:nth-of-type(${position})`,\n          \n          // Context for better understanding\n          parent_context: parentContext.slice(0, 100),\n          siblings_context: siblingsText.slice(0, 3),\n          \n          // Visibility and interactivity\n          position: {\n            top: Math.round(rect.top),\n            left: Math.round(rect.left),\n            width: Math.round(rect.width),\n            height: Math.round(rect.height)\n          },\n          is_clickable: tag === 'a' || tag === 'button' || \n                       el.onclick !== null || \n                       el.getAttribute('role') === 'button' ||\n                       style.cursor === 'pointer',\n          \n          // Purpose inference\n          likely_purpose: inferPurpose(el, text)\n        });\n      });\n      \n      function inferPurpose(el, text) {\n        const textLower = text.toLowerCase();\n        const tag = el.tagName.toLowerCase();\n        const href = el.href || '';\n        \n        // Navigation patterns\n        if (textLower.match(/load|more|show|عرض|المزيد|expand|view all/)) {\n          return 'load_more';\n        }\n        if (textLower.match(/next|previous|prev|التالي|السابق/)) {\n          return 'pagination';\n        }\n        if (textLower.match(/today|tomorrow|date|calendar|اليوم|غدا/)) {\n          return 'date_filter';\n        }\n        if (textLower.match(/live|ongoing|now|مباشر|الآن/)) {\n          return 'live_filter';\n        }\n        if (textLower.match(/all|everything|كل|جميع/) && tag !== 'a') {\n          return 'show_all';\n        }\n        \n        // Tab/category patterns\n        const classes = el.className || '';\n        if (classes.match(/tab|nav-link|category/) || el.getAttribute('role') === 'tab') {\n          return 'tab_navigation';\n        }\n        if (classes.match(/toggle|collapse|dropdown/)) {\n          return 'toggle_content';\n        }\n        \n        // Link patterns\n        if (tag === 'a' && href) {\n          if (textLower.match(/vs|v |match|game|مقابل|ضد/)) {\n            return 'content_link';\n          }\n          if (href.includes('/live') || href.includes('/tv')) {\n            return 'category_link';\n          }\n        }\n        \n        return 'unknown';\n      }\n      \n      return elements;\n    }, searchText);\n\n    // Group elements by purpose for better organization\n    const groupedByPurpose = interactiveElements.reduce((acc, el) => {\n      const purpose = el.likely_purpose;\n      if (!acc[purpose]) acc[purpose] = [];\n      acc[purpose].push(el);\n      return acc;\n    }, {});\n\n    // Generate recommendations\n    const recommendations = [];\n    \n    if (groupedByPurpose.load_more?.length > 0) {\n      recommendations.push({\n        action: 'load_more',\n        elements: groupedByPurpose.load_more.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'high'\n        }))\n      });\n    }\n    \n    if (groupedByPurpose.tab_navigation?.length > 0) {\n      recommendations.push({\n        action: 'explore_tabs',\n        elements: groupedByPurpose.tab_navigation.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'high'\n        }))\n      });\n    }\n    \n    if (groupedByPurpose.show_all?.length > 0) {\n      recommendations.push({\n        action: 'show_all',\n        elements: groupedByPurpose.show_all.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'medium'\n        }))\n      });\n    }\n\n    return JSON.stringify({\n      status: \"success\",\n      summary: {\n        total_interactive: interactiveElements.length,\n        by_purpose: Object.keys(groupedByPurpose).map(purpose => ({\n          purpose,\n          count: groupedByPurpose[purpose].length\n        })),\n        has_load_more: (groupedByPurpose.load_more?.length || 0) > 0,\n        has_tabs: (groupedByPurpose.tab_navigation?.length || 0) > 0,\n        has_filters: (groupedByPurpose.date_filter?.length || 0) > 0 || \n                     (groupedByPurpose.live_filter?.length || 0) > 0\n      },\n      recommendations: recommendations,\n      interactive_elements: interactiveElements,\n      grouped_by_purpose: groupedByPurpose,\n      message: interactiveElements.length === 0 \n        ? \"No interactive elements found matching criteria\" \n        : `Found ${interactiveElements.length} interactive elements`\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      stack: error.stack\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await getHtmlSkeleton();",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL to analyze for interactive elements\",\n      \"examples\": [\"https://example.com/schedule\", \"https://streaming-site.com/live\"]\n    },\n    \"focus_tag\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Focus only on specific HTML tags. Useful for narrowing search.\",\n      \"enum\": [\"button\", \"a\", \"div\", \"span\", \"input\"],\n      \"examples\": [\"button\", \"a\"]\n    },\n    \"search_text\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Only return elements containing this text (case-insensitive). Great for finding specific UI elements like 'Load More', 'Show All', 'Today', 'Live', 'عرض المزيد', etc.\",\n      \"examples\": [\"Load More\", \"Show All\", \"Today\", \"Live\", \"عرض المزيد\", \"اليوم\"]\n    },\n    \"interactive_only\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, only return clickable/interactive elements (buttons, links, tabs, toggles). If false, return all elements matching other criteria.\",\n      \"default\": true\n    },\n    \"include_context\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, include parent and sibling context for each element. Helps LLM understand page structure and make better selector choices.\",\n      \"default\": true\n    }\n  },\n  \"required\": [\"url\"],\n  \"examples\": [\n    {\n      \"url\": \"https://example.com/schedule\",\n      \"search_text\": \"Load More\",\n      \"interactive_only\": true\n    },\n    {\n      \"url\": \"https://streaming-site.com/live\",\n      \"focus_tag\": \"button\",\n      \"interactive_only\": true\n    },\n    {\n      \"url\": \"https://sports-site.com\",\n      \"search_text\": \"Today\",\n      \"include_context\": true\n    }\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        528
+      ],
+      "id": "b5613956-e951-4f21-9a79-446e963c52d0",
+      "name": "Skeleton HTML Tool"
+    },
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n    \"mainUrl\": \"https://www.koora-city.com/\",\n    \"page_links\": [\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"المغرب vs الإمارات\",\n        \"parent_text\": \"المغرب3:30 PM\\n0 - 0\\n15:33:56كأس العرب 2025الإمارات\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"السعودية vs الأردن\",\n        \"parent_text\": \"السعودية6:30 PM\\n0 - 0\\n18:33:56كأس العرب 2025الأردن\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"مانشستر يونايتد vs بورنموث\",\n        \"parent_text\": \"مانشستر يونايتد9:00 PM\\n0 - 0\\n21:03:56الدوري الإنجليزيبورنموث\"\n      }\n    ],\n    \"page_text_content\": \"Home Privacy Policy DMCA 🌙 🌙 × Home Privacy Policy DMCA الأمس اليوم الغد لا توجد مباريات هامة بالأمس تابعنا للحصول على آخر التحديثات المغرب3:30 PM 0 - 0 15:33:56كأس العرب 2025الإماراتالسعودية6:30 PM 0 - 0 18:33:56كأس العرب 2025الأردنمانشستر يونايتد9:00 PM 0 - 0 21:03:56الدوري الإنجليزيبورنموث لا توجد مباريات هامة غداً تابعنا لمعرفة المباريات القادمة كورة سيتي | kooracity موقع كورة سيتي هو واحد من أبرز المواقع الرياضية المتخصصة في تغطية أخبار كرة القدم. مانشستر سيتي اليوم بث مباشر ، كورة سيتي لايف بث متعدد الجودات التي تناسب الجوال koora موقع كورة سيتي لايف live بث مباشر مباريات اليوم يوتيوب مباشر ، يهدف الموقع إلى تزويد الجماهير بأحدث المستجدات والتحليلات في عالم كرة القدم موقع كورة سيتي kooracity مباريات اليوم بث مباشر هو موقع إخباري معروف يهتم بأخبار كرة القدم ويقدم محتوى مفيد وشامل لعشاق اللعبة يمكن للقراء الاعتماد على موقع كورة سيتي koora city ، للحصول على آخر الأخبار والتقارير والتحليلات الرياضية المتعلقة بالفرق واللاعبين المفضلين لديهم كورة سيتي لايف هو موقع حصري,كورة سيتي مباشر كما تتمتع kora city بميزة الاستمتاع بأعلى جودة بث مباشر لمباراة اليوم، حيث توفر صوت وفيديو عالي الجودة للبث المباشر لمباراة اليوم، مما يسمح للجماهير بمشاهدة كافة تفاصيل اللعبة وتجربة الإثارة والتشويق الغامر بالإضافة إلى ذلك, يوفر موقعنا من خلال بث مباشر كورة سيتي kooracity، مشاهدة حصرية لكافة مباريات اليوم ومزايا متنوعة أفضل مما يتخيله المشاهد، لأنه يحرص على تقديم أفضل خدمة على جميع مستوى أنحاء العالم، موقع سبورت لايف الذي يعمل بقوة وكفاءة عالية بدون تقطيع أو تشويش ويحرص على التحديث المستمر طوال فترة بث المباراة, كورة سيتي kooracity، وهو الموقع الوحيد الرسمي في بث المباريات الحصرية بدون تقطيع، ويتميز بوجود الكثير من جودات البث المباشر المتنوعة التي تناسب كافة الأجهزة.\",\n    \"page_has_header\": true,\n    \"page_has_footer\": true,\n    \"page_has_navbar\": true,\n    \"page_network\": [],\n    \"players_found\": [],\n    \"iframe\": \"\",\n    \"iframe_html\": \"\",\n    \"suspicious_patterns\": [\n      \"long-inline-script\"\n    ],\n    \"meta_description\": \"أهم مباريات اليوم بث مباشر koora city\",\n    \"keywords\": [\n      \"kooracity\",\n      \"koora\",\n      \"360\",\n      \"city\",\n      \"live\",\n      \"kora\",\n      \"2025\",\n      \"home\",\n      \"privacy\",\n      \"policy\"\n    ],\n    \"screenshot_url\": \"https://res.cloudinary.com/dktc34wxa/image/upload/v1765752966/j1bdrbkwdilntkwe892l.png\"\n  }"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -656,
+        304
+      ],
+      "id": "0ad70bb4-66bb-483c-92fe-fde9e9372f43",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "model": "xiaomi/mimo-v2-flash:free",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -432,
+        528
+      ],
+      "id": "ee678345-2120-4dee-b472-223d8315c0fd",
+      "name": "glm-4.5-air",
+      "credentials": {
+        "openRouterApi": {
+          "id": "1QI9uO8HxFBwGhAY",
+          "name": "Main"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * LANDING PAGE CONTENT EXTRACTOR – OUTPUT CLEANER (UNIVERSAL)\n * Handles both match content and live streaming channels\n */\n\n// -------------------------------------\n// 0. Read raw agent output\n// -------------------------------------\n// In n8n, $input.first().json gives the item.\n// Depending on previous node, the LLM output might be in 'output', 'text', or the root.\nconst inputItem = $input.first().json;\nconst raw = inputItem.output || inputItem.text || inputItem;\n\n// -------------------------------------\n// 1. Robust JSON extraction\n// -------------------------------------\nfunction extractJson(input) {\n  // Case 1: already an object\n  if (input && typeof input === 'object' && !Array.isArray(input)) {\n    return input;\n  }\n\n  if (typeof input !== 'string') {\n    // If it's an array or something else, try to interpret or fail gracefully\n    if (Array.isArray(input) && input.length > 0) return input[0];\n    throw new Error('Unsupported output type: ' + typeof input);\n  }\n\n  // Case 2: ```json fenced block\n  const fenced = input.match(/```json\\s*([\\s\\S]*?)\\s*```/i);\n  if (fenced) {\n    return JSON.parse(fenced[1]);\n  }\n\n  // Case 3: MATCHES:\\n{ ... } or CONTENT:\\n{ ... }\n  // Fixed typo: (?: instead of (? :\n  const contentBlock = input.match(/(?:MATCHES|CONTENT):\\s*({[\\s\\S]*})/i);\n  if (contentBlock) {\n    return JSON.parse(contentBlock[1]);\n  }\n\n  // Case 4: first JSON object in text\n  const firstJson = input.match(/{[\\s\\S]*}/);\n  if (firstJson) {\n    return JSON.parse(firstJson[0]);\n  }\n\n  throw new Error('No JSON block found in agent output');\n}\n\nlet data;\ntry {\n  data = extractJson(raw);\n} catch (err) {\n  return {\n    error: err.message, // Fixed: err. message -> err.message\n    raw_output: raw,\n    content_found: 0,\n    content: [],\n    requires_further_extraction: false\n  };\n}\n\n// -------------------------------------\n// 2. URL validation rules\n// -------------------------------------\nconst INVALID_PATTERNS = [\n  /^#$/,\n  /^\\/$/,\n  /^javascript:/i,\n  /\\/(home|about|contact|privacy|dmca|terms)$/i,\n  /\\/(login|register|signup|subscribe)$/i,\n  /\\/(schedule|leagues|categories)$/i,\n  /facebook\\.com|twitter\\.com|instagram\\.com|telegram/i,\n  /bet|casino|ads/i\n];\n\nfunction isValidContentUrl(url) {\n  if (!url || typeof url !== 'string') return false;\n  // Fixed: ! url.startsWith -> !url.startsWith\n  if (!url.startsWith('http')) return false;\n\n  const lower = url.toLowerCase();\n  return !INVALID_PATTERNS.some(pattern => {\n    if (pattern instanceof RegExp) {\n      return pattern.test(lower);\n    }\n    return lower.includes(pattern);\n  });\n}\n\n// -------------------------------------\n// 3. Normalize content item\n// -------------------------------------\nfunction normalizeContent(item) {\n  // Fixed: ! isValidContentUrl -> !isValidContentUrl\n  if (!item || !isValidContentUrl(item.url)) return null;\n\n  return {\n    url: item.url.trim(), // Fixed: item.url. trim() -> item.url.trim()\n    title: item.title || null,\n    participants: item.participants || item.teams || null,\n    time: item.time || null, // Fixed: item. time -> item.time\n    category: item.category || 'general', // Fixed: item.category\n    broadcaster: item.broadcaster || null,\n    status: item.status || 'live', // Fixed: item. status -> item.status\n    confidence: ['high', 'medium', 'low'].includes(item.confidence)\n      ? item.confidence\n      : 'medium'\n  };\n}\n\n// -------------------------------------\n// 4. Deduplicate & clean\n// -------------------------------------\nconst seen = new Set();\nconst cleanedContent = [];\n\nfor (const item of data.content || []) {\n  const norm = normalizeContent(item);\n  if (!norm) continue;\n\n  const key = norm.url;\n  if (seen.has(key)) continue;\n\n  seen.add(key);\n  cleanedContent.push(norm);\n}\n\n// -------------------------------------\n// 5. Determine content type\n// -------------------------------------\nconst contentTypes = cleanedContent.reduce((acc, item) => {\n  const cat = item.category.toLowerCase();\n  acc[cat] = (acc[cat] || 0) + 1;\n  return acc;\n}, {});\n\n// Fixed: Object. keys -> Object.keys\nconst primaryType = Object.keys(contentTypes).length > 0\n  ? Object.keys(contentTypes).reduce((a, b) => \n      contentTypes[a] > contentTypes[b] ? a : b\n    )\n  : 'general';\n\n// -------------------------------------\n// 6. Final output\n// -------------------------------------\nreturn {\n  content_found: cleanedContent.length,\n  primary_content_type: primaryType,\n  content_breakdown: contentTypes,\n  extraction_method: data.extraction_strategy?.method || 'unknown',\n  tools_used: data.extraction_strategy?.tools_used || [],\n  navigation_steps: data.extraction_strategy?.navigation_steps || [], // Fixed: . navigation_steps -> .navigation_steps\n  content: cleanedContent,\n  requires_further_extraction: \n    data.metadata?.requires_further_extraction ?? \n    (cleanedContent.length < 5), // Added parenthesis for clarity\n  extraction_confidence: data.analysis_summary?.extraction_confidence || 'medium',\n  challenges: data.analysis_summary?.challenges_encountered || [],\n  completion_reason: data.metadata?.completion_reason || 'Extraction completed', // Fixed: . completion_reason -> .completion_reason\n  notes: data.metadata?.recommendation || null // Fixed: . metadata -> .metadata\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        304
+      ],
+      "id": "f555c9f1-f1c2-4896-9641-f95ca0352d11",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "=gpt-5-nano",
+          "mode": "id"
+        },
+        "builtInTools": {
+          "codeInterpreter": true
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -656,
+        632
+      ],
+      "id": "d869d79d-dbcf-417c-ad4e-816893ff0381",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "2jQi648NbClDp3i4",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "JkgOJT3DUGLlEokW",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/JkgOJT3DUGLlEokW",
+          "cachedResultName": "Page Links"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "URL": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('URL', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "URL",
+              "displayName": "URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": true
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        528
+      ],
+      "id": "9b46e599-00b2-43ac-ab35-471bdc70c48e",
+      "name": "Call 'Page Links'"
+    },
+    {
+      "parameters": {
+        "model": "=mistralai/devstral-2512:free",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        528
+      ],
+      "id": "11903dc7-db8a-45fb-90d2-0cc26812523b",
+      "name": "glm-4.5-air1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "1QI9uO8HxFBwGhAY",
+          "name": "Main"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "mainUrl": "https://freeshot.live/",
+          "page_links": [
+            {
+              "url": "https://freeshot.live",
+              "parent_text": "Toggle navigation"
+            },
+            {
+              "url": "https://freeshot.live",
+              "text": "Home",
+              "parent_text": "Home"
+            },
+            {
+              "url": "https://freeshot.live/live-tv",
+              "text": "Live TV",
+              "parent_text": "Live TV\n          \n                        +18 MyCamTV\n                        Arabia\n                        Argentina\n                        Australia\n                        Belgium & Netherlands\n                        Brasil\n                        Bulgaria\n                        Canada\n                        Czech & Slovak\n                        EX-YU\n                        France\n                        Germany\n                        Greece\n                        Israel\n                        Italia\n                        Poland\n                        Portugal\n                        Romania\n                        Russia\n                        Scandinavia\n                        Spain\n                        Turkey\n                        United Kingdom\n                        USA"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/18-mycamtv",
+              "text": "+18 MyCamTV",
+              "parent_text": "+18 MyCamTV"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/arabia",
+              "text": "Arabia",
+              "parent_text": "Arabia"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/argentina",
+              "text": "Argentina",
+              "parent_text": "Argentina"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/australia",
+              "text": "Australia",
+              "parent_text": "Australia"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/belgium-netherlands",
+              "text": "Belgium & Netherlands",
+              "parent_text": "Belgium & Netherlands"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/brasil",
+              "text": "Brasil",
+              "parent_text": "Brasil"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/bulgaria",
+              "text": "Bulgaria",
+              "parent_text": "Bulgaria"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/canada",
+              "text": "Canada",
+              "parent_text": "Canada"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/czech-slovak",
+              "text": "Czech & Slovak",
+              "parent_text": "Czech & Slovak"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/ex-yu",
+              "text": "EX-YU",
+              "parent_text": "EX-YU"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/france",
+              "text": "France",
+              "parent_text": "France"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/germany",
+              "text": "Germany",
+              "parent_text": "Germany"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/greece",
+              "text": "Greece",
+              "parent_text": "Greece"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/israel",
+              "text": "Israel",
+              "parent_text": "Israel"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/italia",
+              "text": "Italia",
+              "parent_text": "Italia"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/poland",
+              "text": "Poland",
+              "parent_text": "Poland"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/portugal",
+              "text": "Portugal",
+              "parent_text": "Portugal"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/romania",
+              "text": "Romania",
+              "parent_text": "Romania"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/russia",
+              "text": "Russia",
+              "parent_text": "Russia"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/scandinavia",
+              "text": "Scandinavia",
+              "parent_text": "Scandinavia"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/spain",
+              "text": "Spain",
+              "parent_text": "Spain"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/turkey",
+              "text": "Turkey",
+              "parent_text": "Turkey"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/united-kingdom",
+              "text": "United Kingdom",
+              "parent_text": "United Kingdom"
+            },
+            {
+              "url": "https://freeshot.live/live-tv/usa",
+              "text": "USA",
+              "parent_text": "USA"
+            },
+            {
+              "url": "https://freeshot.live/login",
+              "text": "Login",
+              "parent_text": "You don't have access to premimum content kindly purchase subscription to watch this content or Login with premium account."
+            },
+            {
+              "url": "#",
+              "text": "Continue",
+              "parent_text": "ContinueLearn more"
+            },
+            {
+              "url": "#",
+              "text": "Learn more",
+              "parent_text": "ContinueLearn more"
+            },
+            {
+              "url": "#",
+              "text": "x",
+              "parent_text": "This website is using cookiesWe use them to give you the best experience. If you continue using our website, we'll assume that you are happy to receive all cookies on this website.ContinueLearn morex"
+            }
+          ],
+          "page_text_content": "Toggle navigation Home Live TV +18 MyCamTV Arabia Argentina Australia Belgium & Netherlands Brasil Bulgaria Canada Czech & Slovak EX-YU France Germany Greece Israel Italia Poland Portugal Romania Russia Scandinavia Spain Turkey United Kingdom USA 1 × Login Alert You don't have access to premimum content kindly purchase subscription to watch this content or Login with premium account. Close <div><img alt=\"\" src=\"https://mc.yandex.ru/watch/90037442\" style=\"position:absolute;left:-9999px\"/></div> This website is using cookiesWe use them to give you the best experience. If you continue using our website, we'll assume that you are happy to receive all cookies on this website.ContinueLearn morex",
+          "page_has_header": false,
+          "page_has_footer": true,
+          "page_has_navbar": true,
+          "page_network": [
+            "https://freeshot.live/",
+            "https://freeshot.live/site_assets/css/style_dark.css",
+            "https://freeshot.live/site_assets/css/responsive_dark.css",
+            "https://freeshot.live/site_assets/css/jquery-eu-cookie-law-popup.css",
+            "https://freeshot.live/upload/source/logo.png",
+            "https://freeshot.live/site_assets/js/jquery-eu-cookie-law-popup.js",
+            "https://freeshot.live/site_assets/js/custom.js",
+            "https://freeshot.live/public/upload/source/video.mp4",
+            "https://s4.histats.com/stats/0.php?4660312&@f16&@g1&@h1&@i1&@j1766578340587&@k0&@l1&@mFreeShot%20-%20Watch%20Live%20Stream%20Channels%20for%20Free&@n0&@o1000&@q0&@r0&@s0&@ten-US&@u393&@b1:74030252&@b3:1766578341&@b4:js15_as.js&@b5:60&@a-_0.2.1&@vhttps%3A%2F%2Ffreeshot.live%2F&@w",
+            "https://e.dtscout.com/e/?v=1a&pid=5200&site=1&l=https%3A%2F%2Ffreeshot.live%2F&j=",
+            "https://mc.yandex.ru/watch/90037442?wmode=7&page-url=https%3A%2F%2Ffreeshot.live%2F&charset=utf-8&uah=chm%0A%3F0&browser-info=pv%3A1%3Avf%3A6dxo56vtzxzyyc4em9c7ihhrqsezj%3Afu%3A0%3Aen%3Autf-8%3Ala%3Aen-US%3Av%3A2322%3Acn%3A1%3Adp%3A0%3Als%3A205528555323%3Ahid%3A837952745%3Az%3A60%3Ai%3A20251224131221%3Aet%3A1766578342%3Ac%3A1%3Arn%3A387926979%3Arqn%3A1%3Au%3A1766578342251131428%3Aw%3A1280x1024%3As%3A393x852x24%3Ask%3A3%3Afp%3A744%3Awv%3A2%3Ads%3A6%2C153%2C251%2C2%2C1%2C0%2C%2C420%2C0%2C%2C%2C%2C834%3Aco%3A0%3Acpf%3A1%3Ans%3A1766578339677%3Anp%3AaVBob25l%3Afip%3Aa81f3b9bcdd80a361c14af38dc09b309-1cc4db1a3d7b1837d6538ca6cabed338-a81f3b9bcdd80a361c14af38dc09b309-7950ec0297c12322859860922e071362-168af16762965f562d1d28edf7cca77f-e737e4a1ebe359178bd9e5c2ce693874-2bd4fd1bcd9c70de14f67cd39740e299-7ce51d8b6ea0cd6fe1f89b435fd557b6-a81f3b9bcdd80a361c14af38dc09b309-b739898afdb84d2811ec8db23d0e7335-c2d702a1268b666ebbf61c770cb4c726%3Arqnl%3A1%3Ast%3A1766578342%3At%3AFreeShot%20-%20Watch%20Live%20Stream%20Channels%20for%20Free&t=gdpr(14)clc(0-0-0)rqnt(1)aw(1)rcm(1)cdl(na)eco(83952128)fip(1)ti(1)",
+            "https://mc.yandex.ru/watch/90037442/1?wmode=7&page-url=https%3A%2F%2Ffreeshot.live%2F&charset=utf-8&uah=chm%0A%3F0&browser-info=pv%3A1%3Avf%3A6dxo56vtzxzyyc4em9c7ihhrqsezj%3Afu%3A0%3Aen%3Autf-8%3Ala%3Aen-US%3Av%3A2322%3Acn%3A1%3Adp%3A0%3Als%3A205528555323%3Ahid%3A837952745%3Az%3A60%3Ai%3A20251224131221%3Aet%3A1766578342%3Ac%3A1%3Arn%3A387926979%3Arqn%3A1%3Au%3A1766578342251131428%3Aw%3A1280x1024%3As%3A393x852x24%3Ask%3A3%3Afp%3A744%3Awv%3A2%3Ads%3A6%2C153%2C251%2C2%2C1%2C0%2C%2C420%2C0%2C%2C%2C%2C834%3Aco%3A0%3Acpf%3A1%3Ans%3A1766578339677%3Anp%3AaVBob25l%3Afip%3Aa81f3b9bcdd80a361c14af38dc09b309-1cc4db1a3d7b1837d6538ca6cabed338-a81f3b9bcdd80a361c14af38dc09b309-7950ec0297c12322859860922e071362-168af16762965f562d1d28edf7cca77f-e737e4a1ebe359178bd9e5c2ce693874-2bd4fd1bcd9c70de14f67cd39740e299-7ce51d8b6ea0cd6fe1f89b435fd557b6-a81f3b9bcdd80a361c14af38dc09b309-b739898afdb84d2811ec8db23d0e7335-c2d702a1268b666ebbf61c770cb4c726%3Arqnl%3A1%3Ast%3A1766578342%3At%3AFreeShot%20-%20Watch%20Live%20Stream%20Channels%20for%20Free&t=gdpr%2814%29clc%280-0-0%29rqnt%281%29aw%281%29rcm%281%29cdl%28na%29eco%2883952128%29fip%281%29ti%281%29&redirnss=1",
+            "https://t.dtscout.com/pv/?_a=v&_h=freeshot.live&_ss=3ep23j8r7l&_pv=1&_ls=0&_u1=1&_u3=1&_cc=tn&_pl=d&_cbid=3jc3&_cb=_dtspv.c",
+            "https://t.dtscdn.com/widget/?d=4C3017665783428FC744EBBEC06237D0&nid=300&p=2114454483&t=-60&s=393x852x24&u=https%3A%2F%2Ffreeshot.live%2F&r=",
+            "https://freeshot.live/upload/source/favicon.ico",
+            "https://s4.histats.com/stats/0.php?4660312&@f16&@g0&@h2&@i1&@j1766578350957&@k10370&@l2&@mFreeShot%20-%20Watch%20Live%20Stream%20Channels%20for%20Free&@n0&@o1000&@q0&@r0&@s0&@ten-US&@u393&@b1:71562575&@b3:1766578351&@b4:js15_as.js&@b5:60&@a-_0.2.1&@vhttps%3A%2F%2Ffreeshot.live%2F&@w",
+            "https://mc.yandex.ru/watch/90037442?wmode=7&page-url=https%3A%2F%2Ffreeshot.live%2F&charset=utf-8&uah=chm%0A%3F0&browser-info=pv%3A1%3Avf%3A6dxo56vtzxzyyc4em9c7ihhrqsezj%3Afu%3A0%3Aen%3Autf-8%3Ala%3Aen-US%3Av%3A2322%3Acn%3A1%3Adp%3A0%3Als%3A205528555323%3Ahid%3A329071691%3Az%3A60%3Ai%3A20251224131230%3Aet%3A1766578351%3Ac%3A1%3Arn%3A951047150%3Arqn%3A2%3Au%3A1766578342251131428%3Aw%3A1280x1024%3As%3A393x852x24%3Ask%3A3%3Awv%3A2%3Ads%3A0%2C0%2C378%2C1%2C3%2C0%2C%2C48%2C1%2C%2C%2C%2C431%3Aco%3A0%3Acpf%3A1%3Ans%3A1766578350517%3Apani%3AZGZhYjdlZGRmNjFhMjcwNjM1MGQ2NTk3OThlMTE4NWNhMDJjZmNhMmY3ZjMzMmRlYmVhYjcxM2MwMTRlNTdjMg%3D%3D%3Aadb%3A2%3Afip%3Aa81f3b9bcdd80a361c14af38dc09b309-1cc4db1a3d7b1837d6538ca6cabed338-a81f3b9bcdd80a361c14af38dc09b309-7950ec0297c12322859860922e071362-168af16762965f562d1d28edf7cca77f-e737e4a1ebe359178bd9e5c2ce693874-2bd4fd1bcd9c70de14f67cd39740e299-7ce51d8b6ea0cd6fe1f89b435fd557b6-a81f3b9bcdd80a361c14af38dc09b309-b739898afdb84d2811ec8db23d0e7335-c2d702a1268b666ebbf61c770cb4c726%3Arqnl%3A1%3Ast%3A1766578351%3At%3AFreeShot%20-%20Watch%20Live%20Stream%20Channels%20for%20Free&t=gdpr(14)clc(0-0-0)rqnt(1)aw(1)rcm(0)cdl(na)eco(83952128)fip(1)ti(1)",
+            "https://mc.yandex.ru/watch/90037442/1?wmode=7&page-url=https%3A%2F%2Ffreeshot.live%2F&charset=utf-8&uah=chm%0A%3F0&browser-info=pv%3A1%3Avf%3A6dxo56vtzxzyyc4em9c7ihhrqsezj%3Afu%3A0%3Aen%3Autf-8%3Ala%3Aen-US%3Av%3A2322%3Acn%3A1%3Adp%3A0%3Als%3A205528555323%3Ahid%3A329071691%3Az%3A60%3Ai%3A20251224131230%3Aet%3A1766578351%3Ac%3A1%3Arn%3A951047150%3Arqn%3A2%3Au%3A1766578342251131428%3Aw%3A1280x1024%3As%3A393x852x24%3Ask%3A3%3Awv%3A2%3Ads%3A0%2C0%2C378%2C1%2C3%2C0%2C%2C48%2C1%2C%2C%2C%2C431%3Aco%3A0%3Acpf%3A1%3Ans%3A1766578350517%3Apani%3AZGZhYjdlZGRmNjFhMjcwNjM1MGQ2NTk3OThlMTE4NWNhMDJjZmNhMmY3ZjMzMmRlYmVhYjcxM2MwMTRlNTdjMg%3D%3D%3Aadb%3A2%3Afip%3Aa81f3b9bcdd80a361c14af38dc09b309-1cc4db1a3d7b1837d6538ca6cabed338-a81f3b9bcdd80a361c14af38dc09b309-7950ec0297c12322859860922e071362-168af16762965f562d1d28edf7cca77f-e737e4a1ebe359178bd9e5c2ce693874-2bd4fd1bcd9c70de14f67cd39740e299-7ce51d8b6ea0cd6fe1f89b435fd557b6-a81f3b9bcdd80a361c14af38dc09b309-b739898afdb84d2811ec8db23d0e7335-c2d702a1268b666ebbf61c770cb4c726%3Arqnl%3A1%3Ast%3A1766578351%3At%3AFreeShot%20-%20Watch%20Live%20Stream%20Channels%20for%20Free&t=gdpr%2814%29clc%280-0-0%29rqnt%281%29aw%281%29rcm%280%29cdl%28na%29eco%2883952128%29fip%281%29ti%281%29&redirnss=1",
+            "https://t.dtscout.com/pv/?_a=v&_h=freeshot.live&_ss=3ep23j8r7l&_pv=2&_ls=9&_cc=tn&_pl=d&_b=safari%4017&_cbid=4j73&_cb=_dtspv.c"
+          ],
+          "players_found": [],
+          "iframe": "javascript:false",
+          "iframe_html": "",
+          "suspicious_patterns": [
+            "javascript:links",
+            "long-inline-script"
+          ],
+          "meta_description": "The best live streaming experience in sports, entertainment, news, leisure and culture. TV live channels for free on your mobile, tablet, Mac or PC.",
+          "keywords": [
+            "watch",
+            "live",
+            "website",
+            "freeshot",
+            "login",
+            "content",
+            "div",
+            "using",
+            "90037442",
+            "stream"
+          ],
+          "screenshot_url": "https://res.cloudinary.com/dktc34wxa/image/upload/v1766578366/t9beaqzrmzluewslhnlv.png"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Screenshot Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clicking Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Landing Page Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skeleton HTML Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "glm-4.5-air": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Call 'Page Links'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "glm-4.5-air1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f8e890c0-db0b-4ba7-8f52-586ab3b501a1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"
+  },
+  "id": "sEMqfJTMExNrS9Dq",
+  "tags": []
+}
