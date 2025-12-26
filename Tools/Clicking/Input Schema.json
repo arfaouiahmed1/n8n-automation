@@ -3,15 +3,15 @@
   "properties": {
     "url": {
       "type": "string",
-      "description": "The current page URL"
+      "description": "The current page URL where the click should happen."
     },
     "selector": {
       "type": "string",
-      "description": "CSS selector or text-based selector (e.g., 'text=Load More', '.load-more', '#show-more')"
+      "description": "The element to click. Can be a CSS selector (e.g., '#submit-btn', '.nav-link') or a text-based selector starting with 'text=' (e.g., 'text=Load More', 'text=Next Page'). Text selectors are case-insensitive."
     },
     "expect_navigation": {
       "type": "boolean",
-      "description": "Set to true if clicking should navigate to a new page, false for UI state changes",
+      "description": "Set to true if the click is expected to load a new page. Set to false if it triggers an in-page action (like opening a modal or loading more content).",
       "default": false
     }
   },

@@ -25,54 +25,6 @@
     },
     {
       "parameters": {
-        "jsCode": "// Name: screenshot_tool_cloudinary\nconst puppeteer = require('puppeteer');\nconst https = require('https');\n\n/**\n * Upload image buffer to Cloudinary\n */\nasync function uploadToCloudinary(imageBuffer) {\n  const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || \"dktc34wxa\";\n  const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || \"n8n-Ahmed\";\n\n  if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {\n    throw new Error(\n      `Cloudinary credentials missing: CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}, PRESET=${CLOUDINARY_UPLOAD_PRESET}`\n    );\n  }\n\n  const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;\n\n  const formData = {\n    file: base64Image,\n    upload_preset: CLOUDINARY_UPLOAD_PRESET,\n  };\n\n  const boundary = \"----n8nCloudinaryBoundary\" + Math.random().toString(16).slice(2);\n  let body = \"\";\n\n  for (const [key, value] of Object.entries(formData)) {\n    body += `--${boundary}\\r\\n`;\n    body += `Content-Disposition: form-data; name=\"${key}\"\\r\\n\\r\\n`;\n    body += `${value}\\r\\n`;\n  }\n  body += `--${boundary}--\\r\\n`;\n\n  return new Promise((resolve, reject) => {\n    const req = https.request(\n      {\n        hostname: \"api.cloudinary.com\",\n        port: 443,\n        path: `/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,\n        method: \"POST\",\n        headers: {\n          \"Content-Type\": `multipart/form-data; boundary=${boundary}`,\n          \"Content-Length\": Buffer.byteLength(body),\n        },\n      },\n      (res) => {\n        let data = \"\";\n        res.on(\"data\", (chunk) => (data += chunk));\n        res.on(\"end\", () => {\n          if (res.statusCode === 200) {\n            resolve(JSON.parse(data).secure_url);\n          } else {\n            reject(new Error(`Cloudinary upload failed: ${data}`));\n          }\n        });\n      }\n    );\n\n    req.on(\"error\", reject);\n    req.write(body);\n    req.end();\n  });\n}\n\n/**\n * Main Screenshot Function\n */\nasync function takeScreenshot() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const fullPageInput = $fromAI(\"fullPage\");\n  const fullPage = fullPageInput === true || fullPageInput === \"true\";\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\",\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: [\n      \"--no-sandbox\",\n      \"--disable-setuid-sandbox\",\n      \"--disable-dev-shm-usage\",\n    ],\n  });\n\n  try {\n    const page = await browser.newPage();\n\n    await page.setViewport({ width: 1280, height: 800 });\n    await page.setUserAgent(\n      \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36\"\n    );\n\n    await page.goto(url, {\n      waitUntil: \"domcontentloaded\",\n      timeout: 30000,\n    });\n\n    await page.waitForTimeout(2000);\n\n    let buffer;\n    let type = \"viewport\";\n\n    if (selector) {\n      try {\n        await page.waitForSelector(selector, { timeout: 5000 });\n        const element = await page.$(selector);\n\n        if (!element) {\n          return JSON.stringify({\n            status: \"error\",\n            message: `Selector found but element is null: '${selector}'`,\n          });\n        }\n\n        buffer = await element.screenshot();\n        type = `element (${selector})`;\n      } catch (err) {\n        return JSON.stringify({\n          status: \"error\",\n          message: `Could not screenshot element '${selector}'. ${err.message}`,\n        });\n      }\n    } else {\n      buffer = await page.screenshot({ fullPage });\n      type = fullPage ? \"full_page\" : \"viewport\";\n    }\n\n    const imageUrl = await uploadToCloudinary(buffer);\n\n    return JSON.stringify({\n      status: \"success\",\n      type,\n      image_url: imageUrl,\n      message: \"Screenshot uploaded successfully\",\n    });\n  } catch (err) {\n    return JSON.stringify({\n      status: \"error\",\n      message: err.message,\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await takeScreenshot();\n",
-        "specifyInputSchema": true,
-        "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL of the website to screenshot\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"Optional CSS selector to screenshot a specific element (e.g., '.header', '#main-content')\"\n    },\n    \"fullPage\": {\n      \"type\": \"boolean\",\n      \"description\": \"Capture full scrollable page instead of viewport\"\n    }\n  },\n  \"required\": [\"url\"]\n}\n"
-      },
-      "type": "@n8n/n8n-nodes-langchain.toolCode",
-      "typeVersion": 1.3,
-      "position": [
-        -176,
-        528
-      ],
-      "id": "e1276c79-8050-4ccd-a52e-97749e352067",
-      "name": "Screenshot Tool"
-    },
-    {
-      "parameters": {
-        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function smartClick() {\n  const url = $fromAI(\"url\");\n  const selector = $fromAI(\"selector\");\n  const expectNavigation = $fromAI(\"expect_navigation\") === true;\n\n  if (!url || !selector) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL and selector are required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n\n    // Navigate to page\n    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });\n    await page.waitForTimeout(2000); // Wait for dynamic content\n    \n    const beforeUrl = page.url();\n\n    // Get snapshot of content URLs before click\n    const beforeLinks = await page.evaluate(() => {\n      const links = Array.from(document.querySelectorAll('a[href]'));\n      return links\n        .map(a => a.href)\n        .filter(href => href && !href.startsWith('javascript:') && href !== '#');\n    });\n\n    // Count content indicators before click\n    const beforeContentCount = await page.evaluate(() => {\n      const contentPatterns = [\n        'vs', 'v ', 'مقابل', 'ضد', 'match', 'live', 'stream',\n        'game', 'watch', 'event', 'show', 'fight', 'race'\n      ];\n      const elements = document.querySelectorAll('a[href], div[class*=\"match\"], div[class*=\"game\"], div[class*=\"event\"]');\n      let count = 0;\n      \n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        const className = (el.className || '').toLowerCase();\n        \n        if (contentPatterns.some(p => \n          text.includes(p) || href.includes(p) || className.includes(p)\n        )) {\n          count++;\n        }\n      });\n      \n      return count;\n    });\n\n    // ENHANCED CLICK LOGIC\n    let clickSuccess = false;\n    let clickMethod = '';\n    let errorLog = [];\n    let elementInfo = null;\n\n    // METHOD 1: Text-based selector\n    if (selector.startsWith('text=')) {\n      const text = selector.slice(5).trim();\n      \n      try {\n        // Case-insensitive contains with normalize\n        const xpath = `//*[contains(translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${text.toLowerCase()}')]`;\n        const elements = await page.$x(xpath);\n        \n        if (elements.length > 0) {\n          // Find the most clickable element\n          for (let element of elements) {\n            const info = await element.evaluate(el => {\n              const rect = el.getBoundingClientRect();\n              const style = window.getComputedStyle(el);\n              return {\n                visible: rect.width > 0 && rect.height > 0,\n                display: style.display !== 'none',\n                visibility: style.visibility !== 'hidden',\n                opacity: parseFloat(style.opacity) > 0,\n                tag: el.tagName.toLowerCase(),\n                text: el.textContent.trim().slice(0, 100),\n                clickable: ['a', 'button'].includes(el.tagName.toLowerCase()) || \n                          el.onclick !== null || \n                          el.getAttribute('role') === 'button'\n              };\n            });\n            \n            if (info.visible && info.display && info.visibility && info.opacity > 0) {\n              try {\n                await element.click();\n                clickSuccess = true;\n                clickMethod = 'text_xpath';\n                elementInfo = info;\n                break;\n              } catch (e) {\n                errorLog.push(`Element found but click failed: ${e.message}`);\n              }\n            }\n          }\n        } else {\n          errorLog.push(`No elements found matching text: \"${text}\"`);\n        }\n      } catch (e) {\n        errorLog.push(`XPath text search failed: ${e.message}`);\n      }\n    }\n    \n    // METHOD 2: CSS Selector with enhanced validation\n    else {\n      // Try to find and validate element first\n      try {\n        const elementExists = await page.evaluate((sel) => {\n          try {\n            const el = document.querySelector(sel);\n            if (!el) return { found: false };\n            \n            const rect = el.getBoundingClientRect();\n            const style = window.getComputedStyle(el);\n            \n            return {\n              found: true,\n              visible: rect.width > 0 && rect.height > 0,\n              display: style.display !== 'none',\n              visibility: style.visibility !== 'hidden',\n              opacity: parseFloat(style.opacity),\n              tag: el.tagName.toLowerCase(),\n              text: el.textContent.trim().slice(0, 100),\n              isInteractive: ['a', 'button', 'input'].includes(el.tagName.toLowerCase()) ||\n                            el.onclick !== null ||\n                            el.hasAttribute('onclick') ||\n                            el.getAttribute('role') === 'button' ||\n                            style.cursor === 'pointer'\n            };\n          } catch (e) {\n            return { found: false, error: e.message };\n          }\n        }, selector);\n\n        if (!elementExists.found) {\n          errorLog.push(`Element not found: ${selector}`);\n        } else if (!elementExists.visible) {\n          errorLog.push(`Element found but not visible: ${JSON.stringify(elementExists)}`);\n        } else {\n          elementInfo = elementExists;\n          \n          // Try direct click\n          try {\n            await page.waitForSelector(selector, { visible: true, timeout: 2000 });\n            await page.click(selector);\n            clickSuccess = true;\n            clickMethod = 'css_direct';\n          } catch (e1) {\n            errorLog.push(`Direct click failed: ${e1.message}`);\n            \n            // Try scrolling into view then click\n            try {\n              await page.evaluate((sel) => {\n                const el = document.querySelector(sel);\n                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });\n              }, selector);\n              await page.waitForTimeout(500);\n              await page.click(selector);\n              clickSuccess = true;\n              clickMethod = 'css_scroll_click';\n            } catch (e2) {\n              errorLog.push(`Scroll + click failed: ${e2.message}`);\n              \n              // Try JavaScript click as last resort\n              try {\n                const jsClicked = await page.evaluate((sel) => {\n                  const el = document.querySelector(sel);\n                  if (el) {\n                    el.click();\n                    return true;\n                  }\n                  return false;\n                }, selector);\n                \n                if (jsClicked) {\n                  clickSuccess = true;\n                  clickMethod = 'js_click';\n                } else {\n                  errorLog.push('JS click: element not found');\n                }\n              } catch (e3) {\n                errorLog.push(`JS click failed: ${e3.message}`);\n              }\n            }\n          }\n        }\n      } catch (e) {\n        errorLog.push(`Element validation failed: ${e.message}`);\n      }\n    }\n\n    // If click failed, provide better alternatives\n    if (!clickSuccess) {\n      const suggestions = await page.evaluate((failedSelector) => {\n        const keywords = [\n          'load', 'more', 'show', 'all', 'view', 'expand',\n          'عرض', 'المزيد', 'الكل', 'اليوم', 'مباشر',\n          'today', 'live', 'upcoming', 'schedule'\n        ];\n        \n        const elements = Array.from(document.querySelectorAll(\n          'button, a, div[role=\"button\"], span[onclick], [class*=\"btn\"], [class*=\"toggle\"], [class*=\"tab\"], [class*=\"nav\"]'\n        ));\n        \n        const matches = [];\n        \n        elements.forEach((el, idx) => {\n          const text = (el.textContent || '').toLowerCase().trim();\n          const rect = el.getBoundingClientRect();\n          const style = window.getComputedStyle(el);\n          const isVisible = rect.width > 0 && rect.height > 0 && \n                          style.display !== 'none' && \n                          style.visibility !== 'hidden';\n          \n          if (isVisible && keywords.some(kw => text.includes(kw))) {\n            const classes = el.className ? el.className.split(' ').filter(c => c) : [];\n            \n            matches.push({\n              tag: el.tagName.toLowerCase(),\n              text: el.textContent.trim().slice(0, 60),\n              id: el.id,\n              classes: classes.slice(0, 3),\n              suggested_selector: el.id ? `#${el.id}` : \n                                classes.length > 0 ? `.${classes[0]}` :\n                                `${el.tagName.toLowerCase()}:nth-of-type(${idx + 1})`,\n              text_selector: `text=${text.slice(0, 30)}`\n            });\n          }\n        });\n        \n        return matches.slice(0, 5);\n      }, selector);\n\n      return JSON.stringify({\n        status: \"error\",\n        message: `Failed to click selector after ${errorLog.length} attempts`,\n        selector_tried: selector,\n        element_info: elementInfo,\n        attempts: errorLog,\n        suggestions: suggestions,\n        hint: suggestions.length > 0 ? \n              `Most likely: ${suggestions[0].suggested_selector} (${suggestions[0].text})` : \n              \"No interactive elements found - page may be loading or selector is incorrect\"\n      });\n    }\n\n    // Wait for changes based on expectation\n    if (expectNavigation) {\n      try {\n        await page.waitForNavigation({ timeout: 5000, waitUntil: 'networkidle0' });\n      } catch {\n        await page.waitForTimeout(3000);\n      }\n    } else {\n      await page.waitForTimeout(2000);\n    }\n\n    const afterUrl = page.url();\n    const navigated = beforeUrl !== afterUrl;\n\n    // Get snapshot of content URLs after click\n    const afterLinks = await page.evaluate(() => {\n      const links = Array.from(document.querySelectorAll('a[href]'));\n      return links\n        .map(a => a.href)\n        .filter(href => href && !href.startsWith('javascript:') && href !== '#');\n    });\n\n    // Calculate new unique links\n    const beforeSet = new Set(beforeLinks);\n    const newLinks = afterLinks.filter(link => !beforeSet.has(link));\n\n    // Count content indicators after click\n    const afterContentCount = await page.evaluate(() => {\n      const contentPatterns = [\n        'vs', 'v ', 'مقابل', 'ضد', 'match', 'live', 'stream',\n        'game', 'watch', 'event', 'show', 'fight', 'race'\n      ];\n      const elements = document.querySelectorAll('a[href], div[class*=\"match\"], div[class*=\"game\"], div[class*=\"event\"]');\n      let count = 0;\n      \n      elements.forEach(el => {\n        const text = (el.textContent || '').toLowerCase();\n        const href = (el.href || '').toLowerCase();\n        const className = (el.className || '').toLowerCase();\n        \n        if (contentPatterns.some(p => \n          text.includes(p) || href.includes(p) || className.includes(p)\n        )) {\n          count++;\n        }\n      });\n      \n      return count;\n    });\n\n    // Check if meaningful content appeared\n    const contentIncreased = afterContentCount > beforeContentCount;\n    const newLinksAppeared = newLinks.length > 0;\n    \n    // Extract sample of new visible content\n    const newContentSample = await page.evaluate(() => {\n      const contentPatterns = [\n        'vs', 'v ', 'مقابل', 'ضد', 'match', 'live', 'stream',\n        'game', 'watch', 'event', 'show', 'fight'\n      ];\n      \n      const links = Array.from(document.querySelectorAll('a[href]'));\n      const samples = [];\n      \n      links.forEach(link => {\n        const text = link.textContent.trim();\n        const href = link.href;\n        \n        if (text && contentPatterns.some(p => \n          text.toLowerCase().includes(p) || href.toLowerCase().includes(p)\n        )) {\n          samples.push({\n            text: text.slice(0, 80),\n            href: href\n          });\n        }\n      });\n      \n      return samples.slice(0, 10);\n    });\n\n    return JSON.stringify({\n      status: \"success\",\n      selector_clicked: selector,\n      click_method: clickMethod,\n      element_clicked: elementInfo,\n      navigated,\n      url_changed: navigated,\n      previous_url: beforeUrl,\n      current_url: afterUrl,\n      \n      // More accurate metrics\n      content_elements_before: beforeContentCount,\n      content_elements_after: afterContentCount,\n      content_increased: contentIncreased,\n      content_delta: afterContentCount - beforeContentCount,\n      \n      // Link tracking\n      total_links_before: beforeLinks.length,\n      total_links_after: afterLinks.length,\n      new_unique_links: newLinks.length,\n      new_links_sample: newLinks.slice(0, 5),\n      \n      // Content samples\n      visible_content_sample: newContentSample,\n      \n      // Decision helper\n      likely_successful: navigated || contentIncreased || newLinksAppeared,\n      recommendation: navigated ? \"Navigation occurred - refresh page data\" :\n                      contentIncreased ? \"New content appeared - extract from current page\" :\n                      newLinksAppeared ? \"New links appeared - may need extraction\" :\n                      \"No significant changes detected - try different selector\"\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      stack: error.stack,\n      selector_tried: selector\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await smartClick();",
-        "specifyInputSchema": true,
-        "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The current page URL\"\n    },\n    \"selector\": {\n      \"type\": \"string\",\n      \"description\": \"CSS selector or text-based selector (e.g., 'text=Load More', '.load-more', '#show-more')\"\n    },\n    \"expect_navigation\": {\n      \"type\": \"boolean\",\n      \"description\": \"Set to true if clicking should navigate to a new page, false for UI state changes\",\n      \"default\": false\n    }\n  },\n  \"required\": [\"url\", \"selector\"]\n}"
-      },
-      "type": "@n8n/n8n-nodes-langchain.toolCode",
-      "typeVersion": 1.3,
-      "position": [
-        -48,
-        528
-      ],
-      "id": "359163ba-8505-4889-9c31-6249ce087eb4",
-      "name": "Clicking Tool"
-    },
-    {
-      "parameters": {
-        "jsCode": "const puppeteer = require('puppeteer');\n\nasync function getHtmlSkeleton() {\n  const url = $fromAI(\"url\");\n  const focusTag = $fromAI(\"focus_tag\") || null;\n  const searchText = $fromAI(\"search_text\") || null;\n  const interactiveOnly = $fromAI(\"interactive_only\") !== false; // Default true\n  const includeContext = $fromAI(\"include_context\") !== false; // Default true\n\n  if (!url) {\n    return JSON.stringify({\n      status: \"error\",\n      message: \"URL is required\"\n    });\n  }\n\n  const browser = await puppeteer.launch({\n    headless: \"new\",\n    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']\n  });\n\n  try {\n    const page = await browser.newPage();\n    await page.setViewport({ width: 1366, height: 768 });\n    await page.setUserAgent(\n      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'\n    );\n    \n    // Block unnecessary resources for speed\n    await page.setRequestInterception(true);\n    page.on('request', (req) => {\n      if (['image', 'font'].includes(req.resourceType())) {\n        req.abort();\n      } else {\n        req.continue();\n      }\n    });\n\n    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });\n    await page.waitForTimeout(1500); // Wait for dynamic content\n\n    // Extract comprehensive interactive elements with context\n    const interactiveElements = await page.evaluate((searchText) => {\n      const elements = [];\n      \n      // Target interactive elements\n      const candidates = document.querySelectorAll(\n        'button, a, input[type=\"button\"], input[type=\"submit\"], ' +\n        '[role=\"button\"], [role=\"tab\"], [onclick], ' +\n        '[class*=\"btn\"], [class*=\"button\"], [class*=\"tab\"], [class*=\"toggle\"], ' +\n        '[class*=\"load\"], [class*=\"more\"], [class*=\"show\"], [class*=\"expand\"], ' +\n        '[data-toggle], [data-tab], [data-click]'\n      );\n      \n      candidates.forEach((el, idx) => {\n        const rect = el.getBoundingClientRect();\n        const style = window.getComputedStyle(el);\n        \n        // Check visibility\n        const isVisible = rect.width > 0 && \n                         rect.height > 0 && \n                         style.display !== 'none' && \n                         style.visibility !== 'hidden' &&\n                         parseFloat(style.opacity) > 0;\n        \n        if (!isVisible) return;\n        \n        const text = (el.textContent || '').trim();\n        const tag = el.tagName.toLowerCase();\n        \n        // Apply text filter if provided\n        if (searchText && !text.toLowerCase().includes(searchText.toLowerCase())) {\n          return;\n        }\n        \n        // Generate multiple selector options\n        const selectors = [];\n        \n        if (el.id) {\n          selectors.push({\n            type: 'id',\n            value: `#${el.id}`,\n            reliability: 'high'\n          });\n        }\n        \n        const classes = el.className ? el.className.split(' ').filter(c => c.trim()) : [];\n        if (classes.length > 0) {\n          // Primary class\n          selectors.push({\n            type: 'class',\n            value: `.${classes[0]}`,\n            reliability: 'medium'\n          });\n          \n          // Combined classes (more specific)\n          if (classes.length > 1) {\n            selectors.push({\n              type: 'class_combined',\n              value: `.${classes.slice(0, 3).join('.')}`,\n              reliability: 'high'\n            });\n          }\n        }\n        \n        // Tag + class\n        if (classes.length > 0) {\n          selectors.push({\n            type: 'tag_class',\n            value: `${tag}.${classes[0]}`,\n            reliability: 'high'\n          });\n        }\n        \n        // Text-based selector (most reliable for dynamic content)\n        if (text && text.length < 50) {\n          selectors.push({\n            type: 'text',\n            value: `text=${text.slice(0, 40)}`,\n            reliability: 'high'\n          });\n        }\n        \n        // Nth-of-type (fallback)\n        const siblings = Array.from(el.parentElement?.children || []).filter(\n          child => child.tagName === el.tagName\n        );\n        const position = siblings.indexOf(el) + 1;\n        if (position > 0) {\n          selectors.push({\n            type: 'nth_type',\n            value: `${tag}:nth-of-type(${position})`,\n            reliability: 'low'\n          });\n        }\n        \n        // Get parent context\n        let parentContext = '';\n        let parent = el.parentElement;\n        let depth = 0;\n        while (parent && depth < 2) {\n          const parentTag = parent.tagName.toLowerCase();\n          const parentClass = parent.className ? `.${parent.className.split(' ')[0]}` : '';\n          parentContext = `${parentTag}${parentClass} > ${parentContext}`;\n          parent = parent.parentElement;\n          depth++;\n        }\n        \n        // Get siblings context (nearby text/elements)\n        const siblingsText = [];\n        if (el.parentElement) {\n          Array.from(el.parentElement.children).forEach(sibling => {\n            if (sibling !== el) {\n              const sibText = (sibling.textContent || '').trim().slice(0, 30);\n              if (sibText) siblingsText.push(sibText);\n            }\n          });\n        }\n        \n        elements.push({\n          index: idx,\n          tag: tag,\n          text: text.slice(0, 100),\n          href: el.href || null,\n          \n          // Element properties\n          id: el.id || null,\n          classes: classes,\n          attributes: {\n            role: el.getAttribute('role'),\n            type: el.getAttribute('type'),\n            'data-toggle': el.getAttribute('data-toggle'),\n            'data-tab': el.getAttribute('data-tab'),\n            onclick: el.onclick ? 'present' : null,\n            'aria-label': el.getAttribute('aria-label')\n          },\n          \n          // Selector options ranked by reliability\n          selectors: selectors,\n          recommended_selector: selectors.length > 0 ? selectors[0].value : `${tag}:nth-of-type(${position})`,\n          \n          // Context for better understanding\n          parent_context: parentContext.slice(0, 100),\n          siblings_context: siblingsText.slice(0, 3),\n          \n          // Visibility and interactivity\n          position: {\n            top: Math.round(rect.top),\n            left: Math.round(rect.left),\n            width: Math.round(rect.width),\n            height: Math.round(rect.height)\n          },\n          is_clickable: tag === 'a' || tag === 'button' || \n                       el.onclick !== null || \n                       el.getAttribute('role') === 'button' ||\n                       style.cursor === 'pointer',\n          \n          // Purpose inference\n          likely_purpose: inferPurpose(el, text)\n        });\n      });\n      \n      function inferPurpose(el, text) {\n        const textLower = text.toLowerCase();\n        const tag = el.tagName.toLowerCase();\n        const href = el.href || '';\n        \n        // Navigation patterns\n        if (textLower.match(/load|more|show|عرض|المزيد|expand|view all/)) {\n          return 'load_more';\n        }\n        if (textLower.match(/next|previous|prev|التالي|السابق/)) {\n          return 'pagination';\n        }\n        if (textLower.match(/today|tomorrow|date|calendar|اليوم|غدا/)) {\n          return 'date_filter';\n        }\n        if (textLower.match(/live|ongoing|now|مباشر|الآن/)) {\n          return 'live_filter';\n        }\n        if (textLower.match(/all|everything|كل|جميع/) && tag !== 'a') {\n          return 'show_all';\n        }\n        \n        // Tab/category patterns\n        const classes = el.className || '';\n        if (classes.match(/tab|nav-link|category/) || el.getAttribute('role') === 'tab') {\n          return 'tab_navigation';\n        }\n        if (classes.match(/toggle|collapse|dropdown/)) {\n          return 'toggle_content';\n        }\n        \n        // Link patterns\n        if (tag === 'a' && href) {\n          if (textLower.match(/vs|v |match|game|مقابل|ضد/)) {\n            return 'content_link';\n          }\n          if (href.includes('/live') || href.includes('/tv')) {\n            return 'category_link';\n          }\n        }\n        \n        return 'unknown';\n      }\n      \n      return elements;\n    }, searchText);\n\n    // Group elements by purpose for better organization\n    const groupedByPurpose = interactiveElements.reduce((acc, el) => {\n      const purpose = el.likely_purpose;\n      if (!acc[purpose]) acc[purpose] = [];\n      acc[purpose].push(el);\n      return acc;\n    }, {});\n\n    // Generate recommendations\n    const recommendations = [];\n    \n    if (groupedByPurpose.load_more?.length > 0) {\n      recommendations.push({\n        action: 'load_more',\n        elements: groupedByPurpose.load_more.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'high'\n        }))\n      });\n    }\n    \n    if (groupedByPurpose.tab_navigation?.length > 0) {\n      recommendations.push({\n        action: 'explore_tabs',\n        elements: groupedByPurpose.tab_navigation.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'high'\n        }))\n      });\n    }\n    \n    if (groupedByPurpose.show_all?.length > 0) {\n      recommendations.push({\n        action: 'show_all',\n        elements: groupedByPurpose.show_all.map(el => ({\n          selector: el.recommended_selector,\n          text: el.text,\n          confidence: 'medium'\n        }))\n      });\n    }\n\n    return JSON.stringify({\n      status: \"success\",\n      summary: {\n        total_interactive: interactiveElements.length,\n        by_purpose: Object.keys(groupedByPurpose).map(purpose => ({\n          purpose,\n          count: groupedByPurpose[purpose].length\n        })),\n        has_load_more: (groupedByPurpose.load_more?.length || 0) > 0,\n        has_tabs: (groupedByPurpose.tab_navigation?.length || 0) > 0,\n        has_filters: (groupedByPurpose.date_filter?.length || 0) > 0 || \n                     (groupedByPurpose.live_filter?.length || 0) > 0\n      },\n      recommendations: recommendations,\n      interactive_elements: interactiveElements,\n      grouped_by_purpose: groupedByPurpose,\n      message: interactiveElements.length === 0 \n        ? \"No interactive elements found matching criteria\" \n        : `Found ${interactiveElements.length} interactive elements`\n    });\n\n  } catch (error) {\n    return JSON.stringify({\n      status: \"error\",\n      message: error.message,\n      stack: error.stack\n    });\n  } finally {\n    await browser.close();\n  }\n}\n\nreturn await getHtmlSkeleton();",
-        "specifyInputSchema": true,
-        "schemaType": "manual",
-        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\",\n      \"description\": \"The URL to analyze for interactive elements\",\n      \"examples\": [\"https://example.com/schedule\", \"https://streaming-site.com/live\"]\n    },\n    \"focus_tag\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Focus only on specific HTML tags. Useful for narrowing search.\",\n      \"enum\": [\"button\", \"a\", \"div\", \"span\", \"input\"],\n      \"examples\": [\"button\", \"a\"]\n    },\n    \"search_text\": {\n      \"type\": \"string\",\n      \"description\": \"Optional: Only return elements containing this text (case-insensitive). Great for finding specific UI elements like 'Load More', 'Show All', 'Today', 'Live', 'عرض المزيد', etc.\",\n      \"examples\": [\"Load More\", \"Show All\", \"Today\", \"Live\", \"عرض المزيد\", \"اليوم\"]\n    },\n    \"interactive_only\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, only return clickable/interactive elements (buttons, links, tabs, toggles). If false, return all elements matching other criteria.\",\n      \"default\": true\n    },\n    \"include_context\": {\n      \"type\": \"boolean\",\n      \"description\": \"If true, include parent and sibling context for each element. Helps LLM understand page structure and make better selector choices.\",\n      \"default\": true\n    }\n  },\n  \"required\": [\"url\"],\n  \"examples\": [\n    {\n      \"url\": \"https://example.com/schedule\",\n      \"search_text\": \"Load More\",\n      \"interactive_only\": true\n    },\n    {\n      \"url\": \"https://streaming-site.com/live\",\n      \"focus_tag\": \"button\",\n      \"interactive_only\": true\n    },\n    {\n      \"url\": \"https://sports-site.com\",\n      \"search_text\": \"Today\",\n      \"include_context\": true\n    }\n  ]\n}"
-      },
-      "type": "@n8n/n8n-nodes-langchain.toolCode",
-      "typeVersion": 1.3,
-      "position": [
-        80,
-        528
-      ],
-      "id": "b5613956-e951-4f21-9a79-446e963c52d0",
-      "name": "Skeleton HTML Tool"
-    },
-    {
-      "parameters": {
         "inputSource": "jsonExample",
         "jsonExample": "{\n    \"mainUrl\": \"https://www.koora-city.com/\",\n    \"page_links\": [\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/\",\n        \"text\": \"Home\",\n        \"parent_text\": \"Home\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/privacy-policy/\",\n        \"text\": \"Privacy Policy\",\n        \"parent_text\": \"Privacy Policy\"\n      },\n      {\n        \"url\": \"https://www.koora-city.com/dmca/\",\n        \"text\": \"DMCA\",\n        \"parent_text\": \"DMCA\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"المغرب vs الإمارات\",\n        \"parent_text\": \"المغرب3:30 PM\\n0 - 0\\n15:33:56كأس العرب 2025الإمارات\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"السعودية vs الأردن\",\n        \"parent_text\": \"السعودية6:30 PM\\n0 - 0\\n18:33:56كأس العرب 2025الأردن\"\n      },\n      {\n        \"url\": \"#\",\n        \"title\": \"مانشستر يونايتد vs بورنموث\",\n        \"parent_text\": \"مانشستر يونايتد9:00 PM\\n0 - 0\\n21:03:56الدوري الإنجليزيبورنموث\"\n      }\n    ],\n    \"page_text_content\": \"Home Privacy Policy DMCA 🌙 🌙 × Home Privacy Policy DMCA الأمس اليوم الغد لا توجد مباريات هامة بالأمس تابعنا للحصول على آخر التحديثات المغرب3:30 PM 0 - 0 15:33:56كأس العرب 2025الإماراتالسعودية6:30 PM 0 - 0 18:33:56كأس العرب 2025الأردنمانشستر يونايتد9:00 PM 0 - 0 21:03:56الدوري الإنجليزيبورنموث لا توجد مباريات هامة غداً تابعنا لمعرفة المباريات القادمة كورة سيتي | kooracity موقع كورة سيتي هو واحد من أبرز المواقع الرياضية المتخصصة في تغطية أخبار كرة القدم. مانشستر سيتي اليوم بث مباشر ، كورة سيتي لايف بث متعدد الجودات التي تناسب الجوال koora موقع كورة سيتي لايف live بث مباشر مباريات اليوم يوتيوب مباشر ، يهدف الموقع إلى تزويد الجماهير بأحدث المستجدات والتحليلات في عالم كرة القدم موقع كورة سيتي kooracity مباريات اليوم بث مباشر هو موقع إخباري معروف يهتم بأخبار كرة القدم ويقدم محتوى مفيد وشامل لعشاق اللعبة يمكن للقراء الاعتماد على موقع كورة سيتي koora city ، للحصول على آخر الأخبار والتقارير والتحليلات الرياضية المتعلقة بالفرق واللاعبين المفضلين لديهم كورة سيتي لايف هو موقع حصري,كورة سيتي مباشر كما تتمتع kora city بميزة الاستمتاع بأعلى جودة بث مباشر لمباراة اليوم، حيث توفر صوت وفيديو عالي الجودة للبث المباشر لمباراة اليوم، مما يسمح للجماهير بمشاهدة كافة تفاصيل اللعبة وتجربة الإثارة والتشويق الغامر بالإضافة إلى ذلك, يوفر موقعنا من خلال بث مباشر كورة سيتي kooracity، مشاهدة حصرية لكافة مباريات اليوم ومزايا متنوعة أفضل مما يتخيله المشاهد، لأنه يحرص على تقديم أفضل خدمة على جميع مستوى أنحاء العالم، موقع سبورت لايف الذي يعمل بقوة وكفاءة عالية بدون تقطيع أو تشويش ويحرص على التحديث المستمر طوال فترة بث المباراة, كورة سيتي kooracity، وهو الموقع الوحيد الرسمي في بث المباريات الحصرية بدون تقطيع، ويتميز بوجود الكثير من جودات البث المباشر المتنوعة التي تناسب كافة الأجهزة.\",\n    \"page_has_header\": true,\n    \"page_has_footer\": true,\n    \"page_has_navbar\": true,\n    \"page_network\": [],\n    \"players_found\": [],\n    \"iframe\": \"\",\n    \"iframe_html\": \"\",\n    \"suspicious_patterns\": [\n      \"long-inline-script\"\n    ],\n    \"meta_description\": \"أهم مباريات اليوم بث مباشر koora city\",\n    \"keywords\": [\n      \"kooracity\",\n      \"koora\",\n      \"360\",\n      \"city\",\n      \"live\",\n      \"kora\",\n      \"2025\",\n      \"home\",\n      \"privacy\",\n      \"policy\"\n    ],\n    \"screenshot_url\": \"https://res.cloudinary.com/dktc34wxa/image/upload/v1765752966/j1bdrbkwdilntkwe892l.png\"\n  }"
       },
@@ -211,7 +163,7 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        208,
+        -176,
         528
       ],
       "id": "9b46e599-00b2-43ac-ab35-471bdc70c48e",
@@ -238,6 +190,214 @@
           "name": "Main"
         }
       }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "OQ27OSWYIAToBObo",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/OQ27OSWYIAToBObo",
+          "cachedResultName": "Click Tool"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $fromAI('url', 'The current page URL', 'string') }}",
+            "selector": "={{ $fromAI('selector', 'CSS selector or text-based selector', 'string') }}",
+            "expect_navigation": "={{ $fromAI('expect_navigation', 'Set to true if clicking should navigate to a new page', 'boolean') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "selector",
+              "displayName": "selector",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "expect_navigation",
+              "displayName": "expect_navigation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -48,
+        528
+      ],
+      "id": "b3d8a229-8b1d-41db-a6c6-619c35495c1d",
+      "name": "Call 'Click Tool'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "YoSJQ3dCYv6HHiIR",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/YoSJQ3dCYv6HHiIR",
+          "cachedResultName": "Screenshot Tool"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $fromAI('url', 'The URL of the website to screenshot', 'string') }}",
+            "selector": "={{ $fromAI('selector', 'Optional CSS selector to screenshot a specific element', 'string') }}",
+            "fullPage": "={{ $fromAI('fullPage', 'Capture full scrollable page instead of viewport', 'boolean') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "selector",
+              "displayName": "selector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "fullPage",
+              "displayName": "fullPage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        96,
+        528
+      ],
+      "id": "5fef7f09-e8b1-4f9b-a2f8-758cf9fcf69e",
+      "name": "Call 'Screenshot Tool'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "r1HyhNpzSpPrBjEY",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/r1HyhNpzSpPrBjEY",
+          "cachedResultName": "SkeletonHTML Tool"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $fromAI('url', 'The URL to analyze for interactive elements', 'string') }}",
+            "focus_tag": "={{ $fromAI('focus_tag', 'Optional: Focus only on specific HTML tags', 'string') }}",
+            "search_text": "={{ $fromAI('search_text', 'Optional: Only return elements containing this text', 'string') }}",
+            "interactive_only": "={{ $fromAI('interactive_only', 'If true, only return clickable/interactive elements', 'boolean') }}",
+            "include_context": "={{ $fromAI('include_context', 'If true, include parent and sibling context', 'boolean') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "focus_tag",
+              "displayName": "focus_tag",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "search_text",
+              "displayName": "search_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "interactive_only",
+              "displayName": "interactive_only",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            },
+            {
+              "id": "include_context",
+              "displayName": "include_context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        528
+      ],
+      "id": "3ad69bb8-3be4-4f25-a3c6-55a4e076b43e",
+      "name": "Call 'SkeletonHTML Tool'"
     }
   ],
   "pinData": {
@@ -455,45 +615,12 @@
     ]
   },
   "connections": {
-    "Screenshot Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Landing Page Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Clicking Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Landing Page Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Landing Page Agent": {
       "main": [
         [
           {
             "node": "Code in JavaScript",
             "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Skeleton HTML Tool": {
-      "ai_tool": [
-        [
-          {
-            "node": "Landing Page Agent",
-            "type": "ai_tool",
             "index": 0
           }
         ]
@@ -552,13 +679,46 @@
       "main": [
         []
       ]
+    },
+    "Call 'Click Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Screenshot Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'SkeletonHTML Tool'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Landing Page Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "f8e890c0-db0b-4ba7-8f52-586ab3b501a1",
+  "versionId": "e93c045b-4e58-46a1-a0d5-c043bf791e16",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "124a121e0eabe92019aa153b650b882fcdfc854cce820e5d5a87469c3bc4a426"

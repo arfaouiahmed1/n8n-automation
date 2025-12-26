@@ -14,7 +14,21 @@ async function smartClick() {
 
   const browser = await puppeteer.launch({
     headless: "new",
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    executablePath: '/usr/bin/chromium-browser',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--no-first-run',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--mute-audio',
+      '--headless=new',
+      '--disable-extensions-except=/data/extensions/ublock',
+      '--load-extension=/data/extensions/ublock'
+    ]
   });
 
   try {
@@ -71,48 +85,141 @@ async function smartClick() {
     // METHOD 1: Text-based selector
     if (selector.startsWith('text=')) {
       const text = selector.slice(5).trim();
+      const textLower = text.toLowerCase();
       
       try {
-        // Case-insensitive contains with normalize
-        const xpath = `//*[contains(translate(normalize-space(text()), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${text.toLowerCase()}')]`;
-        const elements = await page.$x(xpath);
-        
-        if (elements.length > 0) {
-          // Find the most clickable element
-          for (let element of elements) {
-            const info = await element.evaluate(el => {
+        // Try direct click in browser context (most reliable)
+        const clickResult = await page.evaluate((searchText, searchTextLower) => {
+          const allElements = document.querySelectorAll('a, button, [role="button"], div[onclick], span[onclick], [class*="btn"], [class*="tab"]');
+          const matches = [];
+          
+          allElements.forEach((el) => {
+            const elementText = (el.textContent || '').trim();
+            const elementTextLower = elementText.toLowerCase();
+            
+            // Match strategies
+            const exactMatch = elementTextLower === searchTextLower;
+            const containsMatch = elementTextLower.includes(searchTextLower);
+            const wordMatch = elementTextLower.split(/\\s+/).some(word => word === searchTextLower);
+            
+            if (exactMatch || containsMatch || wordMatch) {
               const rect = el.getBoundingClientRect();
               const style = window.getComputedStyle(el);
-              return {
-                visible: rect.width > 0 && rect.height > 0,
-                display: style.display !== 'none',
-                visibility: style.visibility !== 'hidden',
-                opacity: parseFloat(style.opacity) > 0,
-                tag: el.tagName.toLowerCase(),
-                text: el.textContent.trim().slice(0, 100),
-                clickable: ['a', 'button'].includes(el.tagName.toLowerCase()) || 
-                          el.onclick !== null || 
-                          el.getAttribute('role') === 'button'
-              };
-            });
-            
-            if (info.visible && info.display && info.visibility && info.opacity > 0) {
-              try {
-                await element.click();
-                clickSuccess = true;
-                clickMethod = 'text_xpath';
-                elementInfo = info;
-                break;
-              } catch (e) {
-                errorLog.push(`Element found but click failed: ${e.message}`);
+              const visible = rect.width > 0 && rect.height > 0 &&
+                            style.display !== 'none' &&
+                            style.visibility !== 'hidden' &&
+                            parseFloat(style.opacity) > 0;
+              
+              if (visible) {
+                const classes = el.className ? el.className.split(' ').filter(c => c) : [];
+                matches.push({
+                  element: el,
+                  tag: el.tagName.toLowerCase(),
+                  text: elementText.slice(0, 100),
+                  id: el.id || null,
+                  classes: classes,
+                  matchType: exactMatch ? 'exact' : (wordMatch ? 'word' : 'contains'),
+                  clickable: ['a', 'button'].includes(el.tagName.toLowerCase()) ||
+                            el.onclick !== null ||
+                            el.getAttribute('role') === 'button' ||
+                            style.cursor === 'pointer',
+                  rect: {
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height
+                  }
+                });
               }
             }
+          });
+          
+          // Sort by match quality
+          matches.sort((a, b) => {
+            const matchScore = { exact: 3, word: 2, contains: 1 };
+            const scoreA = matchScore[a.matchType] + (a.clickable ? 10 : 0);
+            const scoreB = matchScore[b.matchType] + (b.clickable ? 10 : 0);
+            return scoreB - scoreA;
+          });
+          
+          if (matches.length === 0) {
+            return { success: false, error: 'No matching elements found', matches: [] };
           }
+          
+          // Try clicking the best matches
+          for (const match of matches.slice(0, 3)) {
+            try {
+              // Scroll into view
+              match.element.scrollIntoView({ behavior: 'instant', block: 'center' });
+              
+              // Try click
+              match.element.click();
+              
+              return {
+                success: true,
+                matchType: match.matchType,
+                elementInfo: {
+                  tag: match.tag,
+                  text: match.text,
+                  id: match.id,
+                  classes: match.classes,
+                  clickable: match.clickable,
+                  rect: match.rect
+                },
+                totalMatches: matches.length
+              };
+            } catch (e) {
+              // Continue to next match
+              continue;
+            }
+          }
+          
+          // If all clicks failed, return info about matches
+          return {
+            success: false,
+            error: `Found ${matches.length} matches but all click attempts failed`,
+            matches: matches.map(m => ({
+              tag: m.tag,
+              text: m.text,
+              matchType: m.matchType,
+              clickable: m.clickable
+            }))
+          };
+        }, text, textLower);
+        
+        if (clickResult.success) {
+          clickSuccess = true;
+          clickMethod = `text_${clickResult.matchType}_direct`;
+          elementInfo = clickResult.elementInfo;
+          errorLog.push(`Successfully clicked using direct method (${clickResult.totalMatches} matches found)`);
         } else {
-          errorLog.push(`No elements found matching text: "${text}"`);
+          errorLog.push(clickResult.error);
+          if (clickResult.matches && clickResult.matches.length > 0) {
+            errorLog.push(`Available matches: ${clickResult.matches.map(m => `"${m.text}" (${m.matchType})`).join(', ')}`);
+          }
+          
+          // Provide similar text suggestions
+          const similarTexts = await page.evaluate((searchTextLower) => {
+            const allElements = document.querySelectorAll('a, button, [role="button"], div[onclick]');
+            const suggestions = [];
+            
+            allElements.forEach(el => {
+              const text = (el.textContent || '').trim();
+              const rect = el.getBoundingClientRect();
+              const visible = rect.width > 0 && rect.height > 0;
+              
+              if (visible && text.length > 0 && text.length < 100) {
+                suggestions.push(text);
+              }
+            });
+            
+            return [...new Set(suggestions)].slice(0, 20);
+          }, textLower);
+          
+          errorLog.push(`Available clickable texts: ${similarTexts.slice(0, 10).join(', ')}`);
         }
       } catch (e) {
-        errorLog.push(`XPath text search failed: ${e.message}`);
+        errorLog.push(`Text search failed: ${e.message}`);
       }
     }
     

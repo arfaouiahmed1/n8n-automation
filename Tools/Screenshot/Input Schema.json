@@ -3,16 +3,34 @@
   "properties": {
     "url": {
       "type": "string",
-      "description": "The URL of the website to screenshot"
+      "description": "The URL of the website to screenshot. Must be a valid HTTP/HTTPS URL.",
+      "examples": ["https://example.com", "https://streaming-site.com/live", "https://sports-site.com/schedule"]
     },
     "selector": {
       "type": "string",
-      "description": "Optional CSS selector to screenshot a specific element (e.g., '.header', '#main-content')"
+      "description": "Optional: CSS selector to screenshot a specific element instead of the viewport (e.g., '.header', '#main-content', 'div.match-card'). If omitted, captures the viewport or full page.",
+      "examples": [".header", "#main-content", "div.video-player", ".schedule-container"]
     },
     "fullPage": {
       "type": "boolean",
-      "description": "Capture full scrollable page instead of viewport"
+      "description": "If true, captures the full scrollable page. If false (default), captures only the visible viewport. Set to true when you need to see all content on the page.",
+      "default": false
     }
   },
-  "required": ["url"]
+  "required": ["url"],
+  "examples": [
+    {
+      "url": "https://example.com",
+      "fullPage": false
+    },
+    {
+      "url": "https://streaming-site.com/schedule",
+      "fullPage": true
+    },
+    {
+      "url": "https://sports-site.com",
+      "selector": ".video-player"
+    }
+  ]
 }
+

@@ -16,7 +16,21 @@ async function getHtmlSkeleton() {
 
   const browser = await puppeteer.launch({
     headless: "new",
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    executablePath: '/usr/bin/chromium-browser',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote',
+      '--no-first-run',
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--mute-audio',
+      '--headless=new',
+      '--disable-extensions-except=/data/extensions/ublock',
+      '--load-extension=/data/extensions/ublock'
+    ]
   });
 
   try {
